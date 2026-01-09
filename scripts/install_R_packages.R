@@ -1,0 +1,5 @@
+library(devtools)
+library(bambu)
+library(dplyr)
+install_version("xgboost", version = "1.7.7.1", repos = "http://cran.us.r-project.org")
+install_github("nuoxuxu/bambu")

@@ -1,0 +1,23 @@
+prefix: ./env
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+dependencies:
+  - isoseq
+  - python
+  - pbskera
+  - samtools
+  - polars
+  - pbpigeon
+  - star
+  - gffutils
+  - r-base
+  - r-devtools
+  - r-tidyr
+  - zlib
+  - bioconductor-bsgenome
+  - bioconductor-genomicalignments
+  - bioconductor-genomicfeatures
+  - bioconductor-rsamtools
+  - bioconductor-sparsematrixstats

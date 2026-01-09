@@ -1,0 +1,15 @@
+work/
+nextflow_results/
+proc/
+notebooks/
+.nextflow/
+.vscode/
+astrocyte_vis_app/
+slurm_logs/
+.nextflow.log*
+figures/
+env/
+data/
+$SCRATCH/
+__pycache__
+**/__init__.pyc
