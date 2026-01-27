@@ -1,7 +1,7 @@
-include { sqanti_qc as sqanti_qc_bambu } from "./modules/sqanti3"
-include { sqanti_filter as sqanti_filter_bambu } from "./modules/sqanti3"
-include { sqanti_qc as sqanti_qc_isoseq } from "./modules/sqanti3"
-include { sqanti_filter as sqanti_filter_isoseq } from "./modules/sqanti3"
+include { sqanti_qc as sqanti_qc_bambu } from "./modules/local/sqanti3"
+include { sqanti_filter as sqanti_filter_bambu } from "./modules/local/sqanti3"
+include { sqanti_qc as sqanti_qc_isoseq } from "./modules/local/sqanti3"
+include { sqanti_filter as sqanti_filter_isoseq } from "./modules/local/sqanti3"
 
 process skera {
     conda "/scratch/nxu/astrocytes/env"
@@ -306,7 +306,7 @@ process filter_by_expression {
     get_counts_from_oarfish.py
     """
 }
-process star {
+process star_rnaseq {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
     storeDir "nextflow_results/align/star"
@@ -456,8 +456,88 @@ process fixORFanageFormat {
     """
 }
 
+process salmon_index {
+    module "StdEnv/2023:gcc/12.3:openmpi/4.1.5:salmon/1.10.2"
+    label "short_slurm_job"
+    storeDir "nextflow_results/prepare/salmon_index"
+    input:
+    path transcriptome_fasta
+
+    output:
+    path "salmon_index"
+
+    script:
+    """
+    salmon index -t $transcriptome_fasta -i salmon_index -k 31
+    """
+}
+
+process salmon_quant {
+    module "StdEnv/2023:gcc/12.3:openmpi/4.1.5:salmon/1.10.2"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quantify/salmon_quant"
+    input:
+    path salmon_index
+    tuple val(sample_id), path(fastq_files)
+
+    output:
+    path("${sample_id}_salmon_quant"), emit: salmon_quant_dir
+
+    script:
+    """
+    salmon quant -i $salmon_index \\
+    -l A \\
+    -1 ${fastq_files[0]} \\
+    -2 ${fastq_files[1]} \\
+    -p ${task.cpus} \\
+    --validateMappings \\
+    -o ${sample_id}_salmon_quant
+    """
+}
+
+process star_riboseq {
+    module "StdEnv/2023:star/2.7.11b"
+    label "short_slurm_job"
+    storeDir "nextflow_results/align/riboseq/"
+    input:
+    path star_genomeDir
+    path fastq_file
+    path final_sample_gtf
+    output:
+    path("${fastq_file.simpleName}.Aligned.toTranscriptome.out.bam"), emit: riboseq_aligned_bam
+    script:
+    """
+    STAR --runThreadN ${task.cpus} \\
+    --genomeDir $star_genomeDir \\
+    --readFilesIn $fastq_file \\
+    --outFileNamePrefix "${fastq_file.simpleName}." \\
+    --outSAMtype BAM SortedByCoordinate \\
+    --limitBAMsortRAM 31568141173 \\
+    --sjdbGTFfile $final_sample_gtf \\
+    --quantMode TranscriptomeSAM
+    """
+}
+
+process format_gtf_for_ribotie {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/orfanage"
+    input:
+    path orfanage_gtf
+
+    output:
+    path("orfanage_numbered_exons.gtf")
+
+    script:
+    """
+    format_gtf_for_ribotie.py \\
+    --input_gtf ${orfanage_gtf} \\
+    --output_gtf orfanage_numbered_exons.gtf
+    """
+}
+
 workflow {
-    Channel.fromPath("data/long_read/pacbio/*/*/*/hifi_reads/*.hifi_reads.bcM0001.bam")
+    channel.fromPath("data/long_read/pacbio/*/*/*/hifi_reads/*.hifi_reads.bcM0001.bam")
         .map { file -> 
             def sample_id = file.simpleName
             return tuple(sample_id, file) 
@@ -477,9 +557,9 @@ workflow {
     merge_aligned_bams(pbmm2.out.aligned_bam.collect())
     collapse_and_sort(merge_aligned_bams.out)
     // isoquant(params.annotation_gtf, params.ref_genome_fasta, params.ref_genome_index, pbmm2.out.aligned_bam.collect(), pbmm2.out.aligned_bam_bai.collect())
-    Channel.fromFilePairs("data/short_read/*_R{1,2}_001.fastq.gz").set { short_read_fastqs }
-    star(params.star_genomeDir, short_read_fastqs, params.annotation_gtf)
-    sqanti_qc_isoseq(collapse_and_sort.out, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star.out.star_aligned_bam.collect(), star.out.star_sj_tab.collect())
+    channel.fromFilePairs("data/short_read/*_R{1,2}_001.fastq.gz").set { short_read_fastqs }
+    star_rnaseq(params.star_genomeDir, short_read_fastqs, params.annotation_gtf)
+    sqanti_qc_isoseq(collapse_and_sort.out, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star_rnaseq.out.star_aligned_bam.collect(), star_rnaseq.out.star_sj_tab.collect())
     def isoseq_corrected_gtf = sqanti_qc_isoseq.out
         .map { dir -> dir / "sqanti_qc_results_corrected.gtf" }
     def isoseq_classification = sqanti_qc_isoseq.out
@@ -495,7 +575,9 @@ workflow {
     filter_by_expression(run_oarfish.out.collect(), filtered_classification, filtered_gtf)
     runORFanage(params.ref_genome_fasta, filter_by_expression.out.final_transcripts_gtf)
     fixORFanageFormat(params.ref_genome_fasta, runORFanage.out.orfanage_gtf)
-
+    salmon_index(extract_transcriptome.out)
+    channel.fromPath("data/ribo_seq/*Unmapped.out.mate1").set{ riboseq_fastq }
+    star_riboseq(params.star_genomeDir, riboseq_fastq, filter_by_expression.out.final_transcripts_gtf)
     // make_db_files(sqanti_filter.out.filtered_gtf)
 
     // sqanti_qc_bambu(bambu.out.supported_tx_gtf, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star.out.star_aligned_bam.collect(), star.out.star_sj_tab.collect())
