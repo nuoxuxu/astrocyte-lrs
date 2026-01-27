@@ -5,10 +5,13 @@ import numpy as np
 import os
 from pathlib import Path
 import polars as pl
+import argparse
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent / 'bin' / 'src'))
+from utils import read_gtf
 "We need to rerun the output table construction and gtf conversion steps because they needed gene_name column to run"
 
 def add_gene_name(df, classification, annotation_gtf):
-    from bin.src.utils import read_gtf
     import polars as pl
     id_to_gene_name = read_gtf(annotation_gtf, attributes=["gene_id", "gene_name"])\
         .filter(pl.col("feature")=="gene")\
@@ -140,50 +143,56 @@ args = Args(
     use_ribo=True,
     grouped_ribo_ids={"Unstim": ["astro_A", "astro_B"], "Stim": ["astro_C", "astro_D"]},
 )
-output_sets = [str(k) for k in args.grouped_ribo_ids.keys()]
-for output in output_sets:
-    out = np.load(f"{args.out_prefix}_{output}.npy", allow_pickle=True)
-    out_prefix = f"{args.out_prefix}_{output}"
-    df, df_filt, df_novel = construct_output_table(
-        h5_path=args.h5_path,
-        out_prefix=out_prefix,
-        prob_cutoff=args.prob_cutoff,
-        correction=not args.no_correction,
-        dist=args.distance,
-        start_codons=args.start_codons,
-        min_ORF_len=args.min_ORF_len,
-        remove_duplicates=not args.keep_duplicates,
-        exclude_invalid_TTS=not args.include_invalid_TTS,
-        ribo_output=out,
-        grouped_ribo_ids=args.grouped_ribo_ids,
-        parallel=args.parallel,
-        return_ORF_coords=args.return_ORF_coords,
-    )
-    if df is not None:
-        ids = ["ribotie_all", "ribotie"]
-        names = ["RiboTIE_redundant", "RiboTIE"]
-        paths = [out_prefix + ".redundant", out_prefix]
-        multiqc_path = os.path.join(os.path.dirname(args.out_prefix), "multiqc")
-        os.makedirs(multiqc_path, exist_ok=True)
-        for df, id, name, path in zip([df, df_filt], ids, names, paths):
-            classification = "nextflow_results/sqanti3/isoseq/sqanti3_filter/filter_by_expression/final_classification.parquet"
-            annotation_gtf = "/project/rrg-shreejoy/Genomic_references/GENCODE/gencode.v47.annotation.gtf"
-            df = add_gene_name(df, classification, annotation_gtf)
-            csv_to_gtf(args.h5_path, df, path, "RiboTIE")
-            out = os.path.join(multiqc_path, os.path.basename(path))
-            create_multiqc_reports(df, out, id, name)
-        csv_to_gtf(args.h5_path, df_novel, out_prefix + ".novel", "RiboTIE")
-    else:
-        print("No positive predictions found")
 
-    if args.pretrain:
-        print(
-            f"""\n
-            !!! 
-            Do not use the pre-trained predictions as is.
-            RiboTIE is meant to fine-tune on individual samples after pre-training.
-            Run RiboTIE without the --pretrain flag and with newly created yml file, e.g.,
-            'ribotie {' '.join(args.conf)} {args.out_prefix}_pretrain_params.rt.yml'.
-            !!!
-            """
+def main():
+    classification = "nextflow_results/sqanti3/isoseq/sqanti3_filter/filter_by_expression/final_classification.parquet"
+    annotation_gtf = "/project/rrg-shreejoy/Genomic_references/GENCODE/gencode.v47.annotation.gtf"    
+    output_sets = [str(k) for k in args.grouped_ribo_ids.keys()]
+    for output in output_sets:
+        out = np.load(f"{args.out_prefix}_{output}.npy", allow_pickle=True)
+        out_prefix = f"{args.out_prefix}_{output}"
+        df, df_filt, df_novel = construct_output_table(
+            h5_path=args.h5_path,
+            out_prefix=out_prefix,
+            prob_cutoff=args.prob_cutoff,
+            correction=not args.no_correction,
+            dist=args.distance,
+            start_codons=args.start_codons,
+            min_ORF_len=args.min_ORF_len,
+            remove_duplicates=not args.keep_duplicates,
+            exclude_invalid_TTS=not args.include_invalid_TTS,
+            ribo_output=out,
+            grouped_ribo_ids=args.grouped_ribo_ids,
+            parallel=args.parallel,
+            return_ORF_coords=args.return_ORF_coords,
         )
+        if df is not None:
+            ids = ["ribotie_all", "ribotie"]
+            names = ["RiboTIE_redundant", "RiboTIE"]
+            paths = [out_prefix + ".redundant", out_prefix]
+            multiqc_path = os.path.join(os.path.dirname(args.out_prefix), "multiqc")
+            os.makedirs(multiqc_path, exist_ok=True)
+            for df, id, name, path in zip([df, df_filt], ids, names, paths):
+                df = add_gene_name(df, classification, annotation_gtf)
+                csv_to_gtf(args.h5_path, df, path, "RiboTIE")
+                out = os.path.join(multiqc_path, os.path.basename(path))
+                create_multiqc_reports(df, out, id, name)
+            df_novel = add_gene_name(df_novel, classification, annotation_gtf)
+            csv_to_gtf(args.h5_path, df_novel, out_prefix + ".novel", "RiboTIE")
+        else:
+            print("No positive predictions found")
+
+        if args.pretrain:
+            print(
+                f"""\n
+                !!! 
+                Do not use the pre-trained predictions as is.
+                RiboTIE is meant to fine-tune on individual samples after pre-training.
+                Run RiboTIE without the --pretrain flag and with newly created yml file, e.g.,
+                'ribotie {' '.join(args.conf)} {args.out_prefix}_pretrain_params.rt.yml'.
+                !!!
+                """
+            )
+
+if __name__ == "__main__":
+    main()
