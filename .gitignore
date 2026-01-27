@@ -13,3 +13,9 @@ data/
 $SCRATCH/
 __pycache__
 **/__init__.pyc
+pytorch/
+RiboTIE/
+ribotie_res/
+from_collaborator/
+envs/
+GRCh38v47/
