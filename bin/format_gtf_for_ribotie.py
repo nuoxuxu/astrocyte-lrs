@@ -1,13 +1,34 @@
 #!/bin/env python
 import polars as pl
-from bin.src.utils import read_gtf
+from src.utils import read_gtf
 import polars as pl
 import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input_gtf", action="store", dest="input_gtf")
+parser.add_argument("--final_classification", action="store", dest="final_classification")
+parser.add_argument("--annotation_gtf", action="store", dest="annotation_gtf")
 parser.add_argument("--output_gtf", action="store", dest="output_gtf")
 params = parser.parse_args()
+
+def add_gene_name(df, classification, annotation_gtf):
+    import polars as pl
+    id_to_gene_name = read_gtf(annotation_gtf, attributes=["gene_id", "gene_name"])\
+        .filter(pl.col("feature")=="gene")\
+        .select("gene_id", "gene_name")\
+        .unique()
+    classification = pl.read_parquet(classification)\
+        .join(
+            id_to_gene_name,
+            left_on="associated_gene",
+            right_on="gene_id",
+            how="left"
+        )
+    return df.join(
+        classification.select(["isoform", "gene_name"]),
+        left_on="transcript_id", 
+        right_on="isoform"
+    )
 
 def write_gtf(df: pl.DataFrame, output_path: str):
     std_cols = ["seqname", "source", "feature", "start", "end", "score", "strand", "frame"]
@@ -85,6 +106,7 @@ other_feature = orfanage_gtf.filter(pl.col("feature").is_in(["exon", "CDS"]).not
     .with_columns(pl.col("exon_number").cast(pl.UInt32))
 
 out_gtf = pl.concat([other_feature, numbered_gtf], how="vertical")\
+    .pipe(add_gene_name, params.final_classification, params.annotation_gtf)\
     .drop("attributes")\
     .sort(["gene_id", "transcript_id", "start", "feature"])
 
