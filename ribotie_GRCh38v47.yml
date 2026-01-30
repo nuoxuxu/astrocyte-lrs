@@ -9,18 +9,17 @@ fa_path : data/GRCh38.primary_assembly.genome.fa
 ## DO NOT change id after data is parsed to h5 file
 ########################################################
 ribo_paths :
-  astro_A : data/ribo_seq/merged_astro_A_gen47Aligned.toTranscriptome.out.bam
-  astro_B : data/ribo_seq/merged_astro_B_gen47Aligned.toTranscriptome.out.bam
-  astro_C : data/ribo_seq/merged_astro_C_gen47Aligned.toTranscriptome.out.bam
-  astro_D : data/ribo_seq/astro_D_Aligned.toTranscriptome.out.bam
-########################################################
+  astro_A : nextflow_results/align/star/riboseq_gencode_transcriptome/merged_astro_A_Unmapped.Aligned.toTranscriptome.out.bam
+  astro_B : nextflow_results/align/star/riboseq_gencode_transcriptome/merged_astro_B_Unmapped.Aligned.toTranscriptome.out.bam
+  astro_C : nextflow_results/align/star/riboseq_gencode_transcriptome/merged_astro_C_Unmapped.Aligned.toTranscriptome.out.bam
+  astro_D : nextflow_results/align/star/riboseq_gencode_transcriptome/Astro_D_Unmapped.Aligned.toTranscriptome.out.bam
 ## path to hdf5 database created to store data.
 ########################################################
-h5_path : ribotie_res/GRCh38v47.h5
+h5_path : ribotie_res/GRCh38v47/GRCh38v47.h5
 ########################################################
 ## Out prefix for predictions, defaults to hdf5 path
 ########################################################
-out_prefix : ribotie_res/GRCh38v47/
+out_prefix : ribotie_res/GRCh38v47/GRCh38v47
 #
 ####################
 ## ADVANCED SETUP ##
@@ -32,20 +31,14 @@ out_prefix : ribotie_res/GRCh38v47/
 ## Replicates can be merged where the number of mapped 
 ## reads are summed for multiple experiments. 
 ########################################################
-## example: only use sample_1 and sample_3
-samples:
-  - astro_A
-  - astro_B
-  - astro_C
-  - astro_D
-#
 # example: sample_1 and sample_2 are merged (replicates)
-# samples:
-#    group 1:
-#      - sample_1
-#      - sample_2
-#    group_2:
-#      - sample_3
+samples:
+   Unstim:
+     - astro_A
+     - astro_B
+   Stim:
+     - astro_C
+     - astro_D
 # 
 ########################################################
 ## Training times can be sped up by removing transcripts
