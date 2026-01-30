@@ -306,10 +306,10 @@ process filter_by_expression {
     get_counts_from_oarfish.py
     """
 }
-process star_rnaseq {
+process star_sr_genome {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/star"
+    storeDir "nextflow_results/align/star/sr_genome"
     input:
     path star_genomeDir
     tuple val(sample_id), path(fastq_files)
@@ -495,10 +495,10 @@ process salmon_quant {
     """
 }
 
-process star_riboseq {
+process star_riboseq_custom_transcriptome {
     module "StdEnv/2023:star/2.7.11b"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/riboseq/"
+    storeDir "nextflow_results/align/star/riboseq_custom_transcriptome/"
     input:
     path star_genomeDir
     path fastq_file
@@ -518,12 +518,37 @@ process star_riboseq {
     """
 }
 
+process star_riboseq_gencode_transcriptome {
+    module "StdEnv/2023:star/2.7.11b"
+    label "short_slurm_job"
+    storeDir "nextflow_results/align/star/riboseq_gencode_transcriptome/"
+    input:
+    path star_genomeDir
+    path fastq_file
+    path annotation_gtf
+    output:
+    path("${fastq_file.simpleName}.Aligned.toTranscriptome.out.bam"), emit: riboseq_aligned_bam
+    script:
+    """
+    STAR --runThreadN ${task.cpus} \\
+    --genomeDir $star_genomeDir \\
+    --readFilesIn $fastq_file \\
+    --outFileNamePrefix "${fastq_file.simpleName}." \\
+    --outSAMtype BAM SortedByCoordinate \\
+    --limitBAMsortRAM 31568141173 \\
+    --sjdbGTFfile $annotation_gtf \\
+    --quantMode TranscriptomeSAM
+    """
+}
+
 process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
     storeDir "nextflow_results/orfanage"
     input:
     path orfanage_gtf
+    path final_classification
+    path annotation_gtf
 
     output:
     path("orfanage_numbered_exons.gtf")
@@ -532,6 +557,8 @@ process format_gtf_for_ribotie {
     """
     format_gtf_for_ribotie.py \\
     --input_gtf ${orfanage_gtf} \\
+    --final_classification ${final_classification} \\
+    --annotation_gtf ${annotation_gtf} \\
     --output_gtf orfanage_numbered_exons.gtf
     """
 }
@@ -558,8 +585,8 @@ workflow {
     collapse_and_sort(merge_aligned_bams.out)
     // isoquant(params.annotation_gtf, params.ref_genome_fasta, params.ref_genome_index, pbmm2.out.aligned_bam.collect(), pbmm2.out.aligned_bam_bai.collect())
     channel.fromFilePairs("data/short_read/*_R{1,2}_001.fastq.gz").set { short_read_fastqs }
-    star_rnaseq(params.star_genomeDir, short_read_fastqs, params.annotation_gtf)
-    sqanti_qc_isoseq(collapse_and_sort.out, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star_rnaseq.out.star_aligned_bam.collect(), star_rnaseq.out.star_sj_tab.collect())
+    star_sr_genome(params.star_genomeDir, short_read_fastqs, params.annotation_gtf)
+    sqanti_qc_isoseq(collapse_and_sort.out, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star_sr_genome.out.star_aligned_bam.collect(), star_sr_genome.out.star_sj_tab.collect())
     def isoseq_corrected_gtf = sqanti_qc_isoseq.out
         .map { dir -> dir / "sqanti_qc_results_corrected.gtf" }
     def isoseq_classification = sqanti_qc_isoseq.out
@@ -577,7 +604,9 @@ workflow {
     fixORFanageFormat(params.ref_genome_fasta, runORFanage.out.orfanage_gtf)
     salmon_index(extract_transcriptome.out)
     channel.fromPath("data/ribo_seq/*Unmapped.out.mate1").set{ riboseq_fastq }
-    star_riboseq(params.star_genomeDir, riboseq_fastq, filter_by_expression.out.final_transcripts_gtf)
+    star_riboseq_custom_transcriptome(params.star_genomeDir, riboseq_fastq, filter_by_expression.out.final_transcripts_gtf)
+    star_riboseq_gencode_transcriptome(params.star_genomeDir, riboseq_fastq, params.annotation_gtf)
+    format_gtf_for_ribotie(fixORFanageFormat.out, filter_by_expression.out.final_classification, params.annotation_gtf)
     // make_db_files(sqanti_filter.out.filtered_gtf)
 
     // sqanti_qc_bambu(bambu.out.supported_tx_gtf, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star.out.star_aligned_bam.collect(), star.out.star_sj_tab.collect())
