@@ -541,6 +541,26 @@ process star_riboseq_gencode_transcriptome {
     """
 }
 
+process translateORFs {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/orfanage"
+
+    input:
+    path ref_genome_fasta
+    path orfanage_gtf
+
+    output:
+    path "orfanage_proteins.fasta"
+
+    script:
+    """
+    gffread -y orfanage_proteins.fasta \\
+        -g $ref_genome_fasta \\
+        $orfanage_gtf
+    """
+}
+
 process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
@@ -602,6 +622,7 @@ workflow {
     filter_by_expression(run_oarfish.out.collect(), filtered_classification, filtered_gtf)
     runORFanage(params.ref_genome_fasta, filter_by_expression.out.final_transcripts_gtf)
     fixORFanageFormat(params.ref_genome_fasta, runORFanage.out.orfanage_gtf)
+    translateORFs(params.ref_genome_fasta, fixORFanageFormat.out)
     salmon_index(extract_transcriptome.out)
     channel.fromPath("data/ribo_seq/*Unmapped.out.mate1").set{ riboseq_fastq }
     star_riboseq_custom_transcriptome(params.star_genomeDir, riboseq_fastq, filter_by_expression.out.final_transcripts_gtf)
