@@ -504,10 +504,11 @@ process star_riboseq {
     path fastq_file
     path final_sample_gtf
     output:
-    path("${fastq_file.simpleName}.Aligned.toTranscriptome.out.bam"), emit: aligned_to_transcriptome_bam
     path("${fastq_file.simpleName}.Aligned.sortedByCoord.out.bam"), emit: aligned_to_genome_bam
+    path("${fastq_file.simpleName}.unmapped.Aligned.toTranscriptome.out.bam"), emit: aligned_to_transcriptome_bam
     script:
     """
+    # First pass: align to genome
     STAR --runThreadN ${task.cpus} \\
     --genomeDir $star_genomeDir \\
     --readFilesIn $fastq_file \\
@@ -515,7 +516,25 @@ process star_riboseq {
     --outSAMtype BAM SortedByCoordinate \\
     --limitBAMsortRAM 31568141173 \\
     --sjdbGTFfile $final_sample_gtf \\
-    --quantMode TranscriptomeSAM
+    --seedSearchStartLmaxOverLread .5 \\
+    --outFilterMultimapNmax 1000 \\
+    --outFilterMismatchNmax 2 \\
+    --outReadsUnmapped Fastx
+
+    # Second pass: align unmapped reads to transcriptome
+    STAR --runThreadN ${task.cpus} \\
+    --genomeDir $star_genomeDir \\
+    --readFilesIn ${fastq_file.simpleName}.Unmapped.out.mate1 \\
+    --outFileNamePrefix "${fastq_file.simpleName}.unmapped." \\
+    --outSAMtype BAM SortedByCoordinate \\
+    --limitBAMsortRAM 31568141173 \\
+    --sjdbGTFfile $final_sample_gtf \\
+    --quantMode TranscriptomeSAM \\
+    --outFilterMultimapNmax 10 \\
+    --outMultimapperOrder Random \\
+    --outFilterMismatchNmax 2 \\
+    --seedSearchStartLmaxOverLread 0.5 \\
+    --alignEndsType EndToEnd
     """
 }
 
