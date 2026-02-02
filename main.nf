@@ -495,16 +495,17 @@ process salmon_quant {
     """
 }
 
-process star_riboseq_custom_transcriptome {
+process star_riboseq {
     module "StdEnv/2023:star/2.7.11b"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq_custom_transcriptome/"
+    storeDir "nextflow_results/align/star/riboseq/"
     input:
     path star_genomeDir
     path fastq_file
     path final_sample_gtf
     output:
-    path("${fastq_file.simpleName}.Aligned.toTranscriptome.out.bam"), emit: riboseq_aligned_bam
+    path("${fastq_file.simpleName}.Aligned.toTranscriptome.out.bam"), emit: aligned_to_transcriptome_bam
+    path("${fastq_file.simpleName}.Aligned.sortedByCoord.out.bam"), emit: aligned_to_genome_bam
     script:
     """
     STAR --runThreadN ${task.cpus} \\
@@ -514,29 +515,6 @@ process star_riboseq_custom_transcriptome {
     --outSAMtype BAM SortedByCoordinate \\
     --limitBAMsortRAM 31568141173 \\
     --sjdbGTFfile $final_sample_gtf \\
-    --quantMode TranscriptomeSAM
-    """
-}
-
-process star_riboseq_gencode_transcriptome {
-    module "StdEnv/2023:star/2.7.11b"
-    label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq_gencode_transcriptome/"
-    input:
-    path star_genomeDir
-    path fastq_file
-    path annotation_gtf
-    output:
-    path("${fastq_file.simpleName}.Aligned.toTranscriptome.out.bam"), emit: riboseq_aligned_bam
-    script:
-    """
-    STAR --runThreadN ${task.cpus} \\
-    --genomeDir $star_genomeDir \\
-    --readFilesIn $fastq_file \\
-    --outFileNamePrefix "${fastq_file.simpleName}." \\
-    --outSAMtype BAM SortedByCoordinate \\
-    --limitBAMsortRAM 31568141173 \\
-    --sjdbGTFfile $annotation_gtf \\
     --quantMode TranscriptomeSAM
     """
 }
@@ -583,6 +561,48 @@ process format_gtf_for_ribotie {
     """
 }
 
+process bam_to_bedgraph_individual {
+    module "StdEnv/2023:bedtools/2.31.0"
+    label "short_slurm_job"
+    storeDir "nextflow_results/align/star/riboseq/"
+    
+    input:
+    path bam_file
+    
+    output:
+    path "${bam_file.simpleName}.bedgraph"
+    
+    script:
+    """
+    bedtools genomecov -ibam ${bam_file} -bg -scale 1 > ${bam_file.simpleName}.bedgraph
+    sort -k1,1 -k2,2n ${bam_file.simpleName}.bedgraph > temp.bedgraph
+    mv temp.bedgraph ${bam_file.simpleName}.bedgraph
+    """
+}
+
+process merge_bedgraph_and_convert_to_bigwig {
+    module "StdEnv/2023:bedtools/2.31.0:kent_tools/486"
+    label "short_slurm_job"
+    storeDir "nextflow_results/align/star/riboseq/"
+    
+    input:
+    path bedgraph_files
+    path ref_genome_index
+    
+    output:
+    path "merged_riboseq.bw"
+    
+    script:
+    """
+    # Merge BedGraphs
+    bedtools unionbedg -i ${bedgraph_files.join(' ')} -filler 0 | awk '{sum=0; for(i=5; i<=NF; i++) sum+=\$i; print \$1, \$2, \$3, sum}' OFS='\\t' > merged.bedgraph
+    
+    # Convert merged BedGraph to bigWig
+    sort -k1,1 -k2,2n merged.bedgraph > merged_sorted.bedgraph
+    bedGraphToBigWig merged_sorted.bedgraph ${ref_genome_index} merged_riboseq.bw
+    """
+}
+
 workflow {
     channel.fromPath("data/long_read/pacbio/*/*/*/hifi_reads/*.hifi_reads.bcM0001.bam")
         .map { file -> 
@@ -625,9 +645,10 @@ workflow {
     translateORFs(params.ref_genome_fasta, fixORFanageFormat.out)
     salmon_index(extract_transcriptome.out)
     channel.fromPath("data/ribo_seq/*Unmapped.out.mate1").set{ riboseq_fastq }
-    star_riboseq_custom_transcriptome(params.star_genomeDir, riboseq_fastq, filter_by_expression.out.final_transcripts_gtf)
-    star_riboseq_gencode_transcriptome(params.star_genomeDir, riboseq_fastq, params.annotation_gtf)
+    star_riboseq(params.star_genomeDir, riboseq_fastq, filter_by_expression.out.final_transcripts_gtf)
     format_gtf_for_ribotie(fixORFanageFormat.out, filter_by_expression.out.final_classification, params.annotation_gtf)
+    bam_to_bedgraph_individual(star_riboseq.out.aligned_to_genome_bam)
+    merge_bedgraph_and_convert_to_bigwig(bam_to_bedgraph_individual.out.collect(), params.ref_genome_index)
     // make_db_files(sqanti_filter.out.filtered_gtf)
 
     // sqanti_qc_bambu(bambu.out.supported_tx_gtf, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star.out.star_aligned_bam.collect(), star.out.star_sj_tab.collect())
