@@ -17,3 +17,4 @@ pytorch/
 ribotie_res/
 from_collaborator/
 scripts/sbatch/
+.DS_Store
