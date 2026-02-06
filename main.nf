@@ -2,6 +2,10 @@ include { sqanti_qc as sqanti_qc_bambu } from "./modules/local/sqanti3"
 include { sqanti_filter as sqanti_filter_bambu } from "./modules/local/sqanti3"
 include { sqanti_qc as sqanti_qc_isoseq } from "./modules/local/sqanti3"
 include { sqanti_filter as sqanti_filter_isoseq } from "./modules/local/sqanti3"
+include { star_riboseq as star_riboseq_custom } from "./modules/local/riboseq"
+include { star_riboseq as star_riboseq_gencode } from "./modules/local/riboseq"
+include { merge_bg_and_convert_to_bw as merge_bg_and_convert_to_bw_custom_unstim } from "./modules/local/riboseq"
+include { merge_bg_and_convert_to_bw as merge_bg_and_convert_to_bw_custom_stim } from "./modules/local/riboseq"
 
 process skera {
     conda "/scratch/nxu/astrocytes/env"
@@ -495,49 +499,6 @@ process salmon_quant {
     """
 }
 
-process star_riboseq {
-    module "StdEnv/2023:star/2.7.11b"
-    label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq/"
-    input:
-    path star_genomeDir
-    path fastq_file
-    path final_sample_gtf
-    output:
-    path("${fastq_file.simpleName}.Aligned.sortedByCoord.out.bam"), emit: aligned_to_genome_bam
-    path("${fastq_file.simpleName}.unmapped.Aligned.toTranscriptome.out.bam"), emit: aligned_to_transcriptome_bam
-    script:
-    """
-    # First pass: align to genome
-    STAR --runThreadN ${task.cpus} \\
-    --genomeDir $star_genomeDir \\
-    --readFilesIn $fastq_file \\
-    --outFileNamePrefix "${fastq_file.simpleName}." \\
-    --outSAMtype BAM SortedByCoordinate \\
-    --limitBAMsortRAM 31568141173 \\
-    --sjdbGTFfile $final_sample_gtf \\
-    --seedSearchStartLmaxOverLread .5 \\
-    --outFilterMultimapNmax 1000 \\
-    --outFilterMismatchNmax 2 \\
-    --outReadsUnmapped Fastx
-
-    # Second pass: align unmapped reads to transcriptome
-    STAR --runThreadN ${task.cpus} \\
-    --genomeDir $star_genomeDir \\
-    --readFilesIn ${fastq_file.simpleName}.Unmapped.out.mate1 \\
-    --outFileNamePrefix "${fastq_file.simpleName}.unmapped." \\
-    --outSAMtype BAM SortedByCoordinate \\
-    --limitBAMsortRAM 31568141173 \\
-    --sjdbGTFfile $final_sample_gtf \\
-    --quantMode TranscriptomeSAM \\
-    --outFilterMultimapNmax 10 \\
-    --outMultimapperOrder Random \\
-    --outFilterMismatchNmax 2 \\
-    --seedSearchStartLmaxOverLread 0.5 \\
-    --alignEndsType EndToEnd
-    """
-}
-
 process translateORFs {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
@@ -577,48 +538,6 @@ process format_gtf_for_ribotie {
     --final_classification ${final_classification} \\
     --annotation_gtf ${annotation_gtf} \\
     --output_gtf orfanage_numbered_exons.gtf
-    """
-}
-
-process bam_to_bedgraph_individual {
-    module "StdEnv/2023:bedtools/2.31.0"
-    label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq/"
-    
-    input:
-    path bam_file
-    
-    output:
-    path "${bam_file.simpleName}.bedgraph"
-    
-    script:
-    """
-    bedtools genomecov -ibam ${bam_file} -bg -scale 1 > ${bam_file.simpleName}.bedgraph
-    sort -k1,1 -k2,2n ${bam_file.simpleName}.bedgraph > temp.bedgraph
-    mv temp.bedgraph ${bam_file.simpleName}.bedgraph
-    """
-}
-
-process merge_bedgraph_and_convert_to_bigwig {
-    module "StdEnv/2023:bedtools/2.31.0:kent_tools/486"
-    label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq/"
-    
-    input:
-    path bedgraph_files
-    path ref_genome_index
-    
-    output:
-    path "merged_riboseq.bw"
-    
-    script:
-    """
-    # Merge BedGraphs
-    bedtools unionbedg -i ${bedgraph_files.join(' ')} -filler 0 | awk '{sum=0; for(i=5; i<=NF; i++) sum+=\$i; print \$1, \$2, \$3, sum}' OFS='\\t' > merged.bedgraph
-    
-    # Convert merged BedGraph to bigWig
-    sort -k1,1 -k2,2n merged.bedgraph > merged_sorted.bedgraph
-    bedGraphToBigWig merged_sorted.bedgraph ${ref_genome_index} merged_riboseq.bw
     """
 }
 
@@ -663,11 +582,40 @@ workflow {
     fixORFanageFormat(params.ref_genome_fasta, runORFanage.out.orfanage_gtf)
     translateORFs(params.ref_genome_fasta, fixORFanageFormat.out)
     salmon_index(extract_transcriptome.out)
-    channel.fromPath("data/ribo_seq/*Unmapped.out.mate1").set{ riboseq_fastq }
-    star_riboseq(params.star_genomeDir, riboseq_fastq, filter_by_expression.out.final_transcripts_gtf)
+    channel.fromPath("data/ribo_seq/*Unmapped.out.mate1").set{ riboseq_unmapped_to_contaminants }
+    star_riboseq_custom(params.star_genomeDir, riboseq_unmapped_to_contaminants, filter_by_expression.out.final_transcripts_gtf, "custom")
+    star_riboseq_gencode(params.star_genomeDir, riboseq_unmapped_to_contaminants, params.annotation_gtf, "gencode")
+    
+    // Split bedGraph files based on sample prefix
+    star_riboseq_custom.out.bedGraph_UniqueMultiple
+        .branch {
+            unstim: it.name =~ /^merged_astro_[AB]_/
+            stim: it.name =~ /^(merged_astro_C_|Astro_D_)/
+        }
+        .set { custom_bedgraphs }
+    
+    star_riboseq_gencode.out.bedGraph_UniqueMultiple
+        .branch {
+            unstim: it.name =~ /^merged_astro_[AB]_/
+            stim: it.name =~ /^(merged_astro_C_|Astro_D_)/
+        }
+        .set { gencode_bedgraphs }
+    
+    // Merge unstimulated samples (A and B)
+    merge_bg_and_convert_to_bw_custom_unstim(
+        custom_bedgraphs.unstim.collect(),
+        params.chrom_sizes,
+        "custom_unstim"
+    )
+    
+    // Merge stimulated samples (C and D)
+    merge_bg_and_convert_to_bw_custom_stim(
+        custom_bedgraphs.stim.collect(),
+        params.chrom_sizes,
+        "custom_stim"
+    )
+    
     format_gtf_for_ribotie(fixORFanageFormat.out, filter_by_expression.out.final_classification, params.annotation_gtf)
-    bam_to_bedgraph_individual(star_riboseq.out.aligned_to_genome_bam)
-    merge_bedgraph_and_convert_to_bigwig(bam_to_bedgraph_individual.out.collect(), params.ref_genome_index)
     // make_db_files(sqanti_filter.out.filtered_gtf)
 
     // sqanti_qc_bambu(bambu.out.supported_tx_gtf, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star.out.star_aligned_bam.collect(), star.out.star_sj_tab.collect())
