@@ -9,10 +9,10 @@ fa_path : data/GRCh38.primary_assembly.genome.fa
 ## DO NOT change id after data is parsed to h5 file
 ########################################################
 ribo_paths :
-  astro_A : nextflow_results/align/star/riboseq_gencode_transcriptome/merged_astro_A_Unmapped.Aligned.toTranscriptome.out.bam
-  astro_B : nextflow_results/align/star/riboseq_gencode_transcriptome/merged_astro_B_Unmapped.Aligned.toTranscriptome.out.bam
-  astro_C : nextflow_results/align/star/riboseq_gencode_transcriptome/merged_astro_C_Unmapped.Aligned.toTranscriptome.out.bam
-  astro_D : nextflow_results/align/star/riboseq_gencode_transcriptome/Astro_D_Unmapped.Aligned.toTranscriptome.out.bam
+  astro_A : nextflow_results/align/star/riboseq/gencode/merged_astro_A_Unmapped.Aligned.toTranscriptome.out.bam
+  astro_B : nextflow_results/align/star/riboseq/gencode/merged_astro_B_Unmapped.Aligned.toTranscriptome.out.bam
+  astro_C : nextflow_results/align/star/riboseq/gencode/merged_astro_C_Unmapped.Aligned.toTranscriptome.out.bam
+  astro_D : nextflow_results/align/star/riboseq/gencode/Astro_D_Unmapped.Aligned.toTranscriptome.out.bam
 ## path to hdf5 database created to store data.
 ########################################################
 h5_path : ribotie_res/GRCh38v47/GRCh38v47.h5
