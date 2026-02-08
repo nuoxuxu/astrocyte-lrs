@@ -547,7 +547,7 @@ process format_gtf_for_ribotie {
 }
 
 workflow {
-    channel.fromPath("data/long_read/pacbio/*/*/*/hifi_reads/*.hifi_reads.bcM0001.bam")
+    channel.fromPath(params.hifi_reads_bam)
         .map { file -> 
             def sample_id = file.simpleName
             return tuple(sample_id, file) 
