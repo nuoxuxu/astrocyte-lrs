@@ -293,23 +293,28 @@ process collapse_and_sort {
 process filter_by_expression {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/filter_by_expression"
+    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/"
 
     input:
     path oarfish_quant_files
     path filtered_classification
     path filtered_gtf
+    val min_reads
+    val min_n_sample
 
     output:
-    path "final_classification.parquet", emit: final_classification
-    path "final_transcripts.gtf", emit: final_transcripts_gtf
-    path "final_expression.parquet", emit: final_expression
+    path("final_expression_${min_reads}_${min_n_sample}/final_classification.parquet"), emit: final_classification
+    path("final_expression_${min_reads}_${min_n_sample}/final_transcripts.gtf"), emit: final_transcripts_gtf
+    path("final_expression_${min_reads}_${min_n_sample}/final_expression.parquet"), emit: final_expression
 
     script:
     """
-    get_counts_from_oarfish.py
+    get_counts_from_oarfish.py \\
+        --min_reads ${min_reads} \\
+        --min_n_sample ${min_n_sample}
     """
 }
+
 process star_sr_genome {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
@@ -577,7 +582,16 @@ workflow {
     extract_transcriptome(filtered_gtf)
     minimap2_transcriptome(extract_transcriptome.out, convert_flnc_bam_to_fastqz.out)
     run_oarfish(minimap2_transcriptome.out)
-    filter_by_expression(run_oarfish.out.collect(), filtered_classification, filtered_gtf)
+    isoform_exp_filter_params = channel.of(
+            ['low_stringency', 1, 2],
+            ['high_stringency', 5, 3]
+        )
+    filter_by_expression_input_ch = run_oarfish.out.collect().map { [it] }
+        .combine(filtered_classification)
+        .combine(filtered_gtf)
+        .collect()
+        .combine(isoform_exp_filter_params)
+    filter_by_expression(filter_by_expression_input_ch)
     runORFanage(params.ref_genome_fasta, filter_by_expression.out.final_transcripts_gtf)
     fixORFanageFormat(params.ref_genome_fasta, runORFanage.out.orfanage_gtf)
     translateORFs(params.ref_genome_fasta, fixORFanageFormat.out)
