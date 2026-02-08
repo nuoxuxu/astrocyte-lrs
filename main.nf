@@ -567,7 +567,7 @@ workflow {
     merge_aligned_bams(pbmm2.out.aligned_bam.collect())
     collapse_and_sort(merge_aligned_bams.out)
     // isoquant(params.annotation_gtf, params.ref_genome_fasta, params.ref_genome_index, pbmm2.out.aligned_bam.collect(), pbmm2.out.aligned_bam_bai.collect())
-    channel.fromFilePairs("data/short_read/*_R{1,2}_001.fastq.gz").set { short_read_fastqs }
+    channel.fromFilePairs(params.input_rna_fastq).set { short_read_fastqs }
     star_sr_genome(params.star_genomeDir, short_read_fastqs, params.annotation_gtf)
     sqanti_qc_isoseq(collapse_and_sort.out, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star_sr_genome.out.star_aligned_bam.collect(), star_sr_genome.out.star_sj_tab.collect())
     def isoseq_corrected_gtf = sqanti_qc_isoseq.out
@@ -596,7 +596,7 @@ workflow {
     fixORFanageFormat(params.ref_genome_fasta, runORFanage.out.orfanage_gtf)
     translateORFs(params.ref_genome_fasta, fixORFanageFormat.out)
     salmon_index(extract_transcriptome.out)
-    channel.fromPath("data/ribo_seq/*Unmapped.out.mate1").set{ riboseq_unmapped_to_contaminants }
+    channel.fromPath(params.riboseq_unmapped_to_contaminants).set{ riboseq_unmapped_to_contaminants }
     star_riboseq_custom(params.star_genomeDir, riboseq_unmapped_to_contaminants, filter_by_expression.out.final_transcripts_gtf, "custom")
     star_riboseq_gencode(params.star_genomeDir, riboseq_unmapped_to_contaminants, params.annotation_gtf, "gencode")
     
