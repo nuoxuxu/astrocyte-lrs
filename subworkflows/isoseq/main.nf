@@ -97,7 +97,7 @@ workflow ISOSEQ {
     ref_genome_fasta
 
     main:
-    flnc_bam.map { id, file -> file }.collect().set { flnc_bams }
+    flnc_bam.map { _id, file -> file }.collect().set { flnc_bams }
     fofn(flnc_bams)
     cluster(fofn.out.flatten(), flnc_bams.collect())
     pbmm2(ref_genome_fasta, cluster.out)

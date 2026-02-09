@@ -152,10 +152,10 @@ workflow SQANTI_AND_FILTER_BY_EXP {
     def filtered_classification = sqanti_filter.out
         .map {dir -> dir / "default_RulesFilter_result_classification.txt"}
     isoform_exp_filter_params = channel.fromList(params.filter_configs)        
-    filter_by_expression_input_ch = oarfish_quant.collect().map { [it] }
+    filter_by_expression_input_ch = oarfish_quant
+        .collect()
         .combine(filtered_classification)
         .combine(filtered_gtf)
-        .collect()
         .combine(isoform_exp_filter_params)
     filter_by_expression(filter_by_expression_input_ch)
 

@@ -67,7 +67,7 @@ workflow BAMBU {
     flnc_bam
 
     main:
-    flnc_bam.map { id, file -> file }.collect().set { flnc_bams }
+    flnc_bam.map { _id, file -> file }.collect().set { flnc_bams }
     merge_flnc_bams(flnc_bams.collect())
     convert_flnc_bam_to_fastqz(merge_flnc_bams.out.flatten())
     minimap2_genome(convert_flnc_bam_to_fastqz.out)    
