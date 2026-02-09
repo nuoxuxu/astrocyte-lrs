@@ -89,7 +89,9 @@ process generate_ribotie_db {
     tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), path(ribotie_yml), path(ref_genome_fasta)
     
     output:
-    path("ribotie.h5")
+    val(param_set_name), emit: param_set_name
+    path("${gtf_path.simpleName}.h5"), emit: gtf_h5
+    path("ribotie_res.h5"), emit: ribotie_h5
 
     script:
     """
