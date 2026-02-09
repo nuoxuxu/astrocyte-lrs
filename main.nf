@@ -7,11 +7,11 @@ include { PREPARE_RIBOTIE } from "./subworkflows/riboseq"
 
 workflow {    
     PREPROCESSING(params.hifi_reads_bam, params.kinnex_adapters, params.isoseq_primers, params.biosamples_csv)
-    ISOSEQ(PREPROCESSING.flnc_bam, params.ref_genome_fasta)
-    RUN_OARFISH(ISOSEQ.merged_sorted_collapsed_gtf)
-    SQANTI_AND_FILTER_BY_EXP(params.input_rna_fastq, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, RUN_OARFISH.oarfish_quant, ISOSEQ.merged_sorted_collapsed_gtf)
-    RUN_ORFANAGE(params.ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.final_transcripts_gtf)
-    PREPARE_RIBOTIE(RUN_ORFANAGE.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.final_classification, params.annotation_gtf, SQANTI_AND_FILTER_BY_EXP.star_genomeDir, params.riboseq_unmapped_to_contaminants)
+    ISOSEQ(PREPROCESSING.out.flnc_bam, params.ref_genome_fasta)
+    RUN_OARFISH(ISOSEQ.out.merged_sorted_collapsed_gtf, PREPROCESSING.out.flnc_bam)
+    SQANTI_AND_FILTER_BY_EXP(params.input_rna_fastq, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, RUN_OARFISH.out.oarfish_quant, ISOSEQ.out.merged_sorted_collapsed_gtf, params.star_genomeDir)
+    RUN_ORFANAGE(params.ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.out.final_transcripts_gtf)
+    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, params.annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.star_genomeDir, params.riboseq_unmapped_to_contaminants)
     
     // -------------------Testing PREPARE_RIBOTIE-----------------
     // orfanage_gtf = channel.of(

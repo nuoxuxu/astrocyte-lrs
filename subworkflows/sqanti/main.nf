@@ -129,12 +129,7 @@ process filter_by_expression {
     storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
 
     input:
-    path oarfish_quant_files
-    path filtered_classification
-    path filtered_gtf
-    val param_set_name
-    val min_reads
-    val min_n_sample
+    tuple path(oarfish_quant_files), path(filtered_classification), path(filtered_gtf), val(param_set_name), val(min_reads), val(min_n_sample)
 
     output:
     tuple val(param_set_name), path("final_classification.parquet"), emit: final_classification

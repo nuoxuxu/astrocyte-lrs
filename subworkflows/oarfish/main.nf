@@ -16,6 +16,23 @@ process extract_transcriptome {
     """
 }
 
+process merge_flnc_bams {
+    conda "/scratch/nxu/SQANTI3/env"
+    label "mid_slurm_job"
+    storeDir "nextflow_results/prepare/merge_flnc_bams"
+    
+    input:
+    path(flnc_bam)
+
+    output:
+    path("*.flnc.bam")
+
+    script:
+    """
+    merge_flnc_bam.sh
+    """
+}
+
 process minimap2_transcriptome {
     conda "/scratch/nxu/astrocytes/env"
     label "mid_slurm_job"
@@ -74,15 +91,18 @@ process run_oarfish {
         --alignments $transcriptome_alignment \\
         --output "${transcriptome_alignment.simpleName}"
     """
-
 }
 
 workflow RUN_OARFISH {
     take:
     filtered_gtf
+    flnc_bam
     
     main:
     extract_transcriptome(filtered_gtf)
+    flnc_bam.map { id, file -> file }.collect().set { flnc_bams }
+    merge_flnc_bams(flnc_bams.collect())
+    convert_flnc_bam_to_fastqz(merge_flnc_bams.out.flatten())
     minimap2_transcriptome(extract_transcriptome.out, convert_flnc_bam_to_fastqz.out)
     run_oarfish(minimap2_transcriptome.out)    
     
