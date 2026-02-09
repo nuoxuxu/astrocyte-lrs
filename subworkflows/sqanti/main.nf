@@ -1,21 +1,3 @@
-process extract_transcriptome {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "${params.outdir}/prepare/extract_transcriptome"
-
-    input:
-    path filtered_gtf
-
-    output:
-    path "joint_transcriptome.fasta"
-    script:
-    """
-    gffread -w joint_transcriptome.fasta \\
-    -g  ${params.ref_genome_fasta} \\
-    ${filtered_gtf}
-    """
-}
-
 process star_genomeGenerate {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
