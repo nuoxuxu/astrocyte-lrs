@@ -44,9 +44,7 @@ def main():
 
     isoforms_to_keep = get_exp_tx(tx_count, min_reads=params.min_reads, min_n_sample=params.min_n_sample)
 
-    outputDir = f"final_expression_{params.min_reads}_{params.min_n_sample}"
-
-    tx_count.filter(pl.col("tname").is_in(isoforms_to_keep)).write_parquet(f"{outputDir}/final_expression.parquet")
+    tx_count.filter(pl.col("tname").is_in(isoforms_to_keep)).write_parquet(f"final_expression.parquet")
 
     classification = pl.read_csv("default_RulesFilter_result_classification.txt", separator="\t")\
         .filter(
@@ -54,12 +52,12 @@ def main():
             pl.col("isoform").is_in(isoforms_to_keep)
         )
 
-    classification.drop("filter_result").write_parquet(f"{outputDir}/final_classification.parquet")
+    classification.drop("filter_result").write_parquet(f"final_classification.parquet")
 
     read_gtf("default.filtered.gtf")\
         .filter(pl.col("transcript_id").is_in(isoforms_to_keep))\
         .drop("transcript_id")\
-        .write_csv(f"{outputDir}/final_transcripts.gtf", separator="\t", include_header=False, quote_style="never")
+        .write_csv(f"final_transcripts.gtf", separator="\t", include_header=False, quote_style="never")
     
 if __name__ == "__main__":
     main()
