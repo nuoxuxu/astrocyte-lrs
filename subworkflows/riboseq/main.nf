@@ -80,6 +80,7 @@ process generate_ribotie_yml {
     -o RiboTIE.yml
     """
 }
+
 process generate_ribotie_db {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
@@ -89,9 +90,7 @@ process generate_ribotie_db {
     tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), path(ribotie_yml), path(ref_genome_fasta)
     
     output:
-    val(param_set_name), emit: param_set_name
-    path("${gtf_path.simpleName}.h5"), emit: gtf_h5
-    path("ribotie_res.h5"), emit: ribotie_h5
+    tuple val(param_set_name), path("${gtf_path.baseName}.h5"), path("ribotie_res.h5")
 
     script:
     """
@@ -127,4 +126,20 @@ workflow PREPARE_RIBOTIE {
         .join(generate_ribotie_yml.out)
         .combine(channel.of(params.ref_genome_fasta))
         | generate_ribotie_db
+    generate_ribotie_db
+        .out
+        .toList()
+        .map { results ->
+            def outputs = results.collect { param_name, gtf_h5, ribotie_h5 ->
+                [
+                    param_set_name: param_name,
+                    gtf_h5: "nextflow_results/ribotie/${param_name}/${gtf_h5.name}",
+                    ribotie_h5: "nextflow_results/ribotie/${param_name}/${ribotie_h5.name}",
+                    base_dir: "nextflow_results/ribotie/${param_name}",
+                    ribotie_yml: "nextflow_results/ribotie/${param_name}/RiboTIE.yml"
+                ]
+            }
+            groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
+        }
+        .collectFile(name: 'ribotie_outputs.json', storeDir: 'nextflow_results/manifests')
 }
