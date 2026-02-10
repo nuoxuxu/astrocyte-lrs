@@ -13,16 +13,9 @@ process runORFanage {
 
     script:
     """
-    gffread \\
-        -g $ref_genome_fasta \\
-        --adj-stop \\
-        -T -F -J \\
-        -o corrected.gtf \\
-        $final_sample_gtf
-
     orfanage \\
         --reference $ref_genome_fasta \\
-        --query corrected.gtf \\
+        --query $final_sample_gtf \\
         --output orfanage_without_gene_id.gtf \\
         --threads $task.cpus \\
         --minlen 50 \\
