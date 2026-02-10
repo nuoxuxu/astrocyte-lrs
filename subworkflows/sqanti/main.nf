@@ -51,6 +51,7 @@ process star_sr_genome {
 process sqanti_qc {
     label "mid_slurm_job"
     container "sqanti3_latest.sif"
+    storeDir "nextflow_results/sqanti3/isoseq"
     input:
     path gff_file
     path annotation_gtf
@@ -87,6 +88,7 @@ process sqanti_qc {
 process sqanti_filter {
     conda "/scratch/nxu/SQANTI3/env"
     label "short_slurm_job"
+    storeDir "nextflow_results/sqanti3/isoseq"
     
     input:
     path corrected_gtf
@@ -154,6 +156,7 @@ workflow SQANTI_AND_FILTER_BY_EXP {
     isoform_exp_filter_params = channel.fromList(params.filter_configs)        
     filter_by_expression_input_ch = oarfish_quant
         .collect()
+        .toList()
         .combine(filtered_classification)
         .combine(filtered_gtf)
         .combine(isoform_exp_filter_params)
