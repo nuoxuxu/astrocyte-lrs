@@ -106,6 +106,7 @@ workflow PREPARE_RIBOTIE {
     annotation_gtf
     star_genomeDir
     riboseq_unmapped_to_contaminants
+    ref_genome_fasta
 
     main:
     custom_gtf = format_gtf_for_ribotie(orfanage_gtf, final_classification, annotation_gtf)
@@ -120,11 +121,11 @@ workflow PREPARE_RIBOTIE {
         .combine(sjdbGTFfile_tuples)
         | star_riboseq
 
-    generate_ribotie_yml(sjdbGTFfile_tuples, params.ref_genome_fasta, star_riboseq.out.transcriptome_bam.groupTuple())
+    generate_ribotie_yml(sjdbGTFfile_tuples, ref_genome_fasta, star_riboseq.out.transcriptome_bam.groupTuple())
     sjdbGTFfile_tuples
         .join(star_riboseq.out.transcriptome_bam.groupTuple())
         .join(generate_ribotie_yml.out)
-        .combine(channel.of(params.ref_genome_fasta))
+        .combine(channel.of(ref_genome_fasta))
         | generate_ribotie_db
     generate_ribotie_db
         .out
@@ -141,5 +142,5 @@ workflow PREPARE_RIBOTIE {
             }
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
         }
-        .collectFile(name: 'ribotie_outputs.json', storeDir: 'nextflow_results/manifests')
+        .collectFile(name: 'ribotie_training_inputs.json', storeDir: 'nextflow_results/manifests')
 }

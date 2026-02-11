@@ -135,6 +135,7 @@ workflow SQANTI_AND_FILTER_BY_EXP {
     ref_genome_fasta
     refTSS
     polyA_motif_list
+    filter_configs
     oarfish_quant
     merged_sorted_collapsed_gtf
     star_genomeGenerate_outputDir
@@ -153,7 +154,7 @@ workflow SQANTI_AND_FILTER_BY_EXP {
         .map {dir -> dir / "default.filtered.gtf"}
     def filtered_classification = sqanti_filter.out
         .map {dir -> dir / "default_RulesFilter_result_classification.txt"}
-    isoform_exp_filter_params = channel.fromList(params.filter_configs)        
+    isoform_exp_filter_params = channel.fromList(filter_configs)        
     filter_by_expression_input_ch = oarfish_quant
         .collect()
         .toList()

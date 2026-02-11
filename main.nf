@@ -4,14 +4,16 @@ include { RUN_OARFISH } from "./subworkflows/oarfish"
 include { SQANTI_AND_FILTER_BY_EXP } from "./subworkflows/sqanti"
 include { RUN_ORFANAGE } from "./subworkflows/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/riboseq"
+include { GET_QUALITY_METRICS } from "./subworkflows/quality"
 
 workflow {    
     PREPROCESSING(params.hifi_reads_bam, params.kinnex_adapters, params.isoseq_primers, params.biosamples_csv)
     ISOSEQ(PREPROCESSING.out.flnc_bam, params.ref_genome_fasta)
-    RUN_OARFISH(ISOSEQ.out.merged_sorted_collapsed_gtf, PREPROCESSING.out.flnc_bam)
-    SQANTI_AND_FILTER_BY_EXP(params.input_rna_fastq, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, RUN_OARFISH.out.oarfish_quant, ISOSEQ.out.merged_sorted_collapsed_gtf, params.star_genomeDir)
-    RUN_ORFANAGE(params.ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.out.final_transcripts_gtf)
-    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, params.annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.star_genomeDir, params.riboseq_unmapped_to_contaminants)
+    RUN_OARFISH(ISOSEQ.out.merged_sorted_collapsed_gtf, params.ref_genome_fasta, PREPROCESSING.out.flnc_bam)
+    SQANTI_AND_FILTER_BY_EXP(params.input_rna_fastq, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, params.filter_configs, RUN_OARFISH.out.oarfish_quant, ISOSEQ.out.merged_sorted_collapsed_gtf, params.star_genomeDir)
+    RUN_ORFANAGE(params.ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.out.final_transcripts_gtf, params.annotation_gtf)
+    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, params.annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, params.ref_genome_fasta)
+    GET_QUALITY_METRICS(params.ribotie_training_outputs, params.PhyloCSFpp_db, RUN_ORFANAGE.out.orfanage_proteins, params.pfamdb)
     
     // -------------------Testing PREPARE_RIBOTIE-----------------
     // orfanage_gtf = channel.of(

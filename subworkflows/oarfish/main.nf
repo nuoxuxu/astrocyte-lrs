@@ -5,13 +5,14 @@ process extract_transcriptome {
 
     input:
     path filtered_gtf
+    path ref_genome_fasta
 
     output:
     path "joint_transcriptome.fasta"
     script:
     """
     gffread -w joint_transcriptome.fasta \\
-    -g  ${params.ref_genome_fasta} \\
+    -g  $ref_genome_fasta \\
     ${filtered_gtf}
     """
 }
@@ -96,10 +97,11 @@ process run_oarfish {
 workflow RUN_OARFISH {
     take:
     filtered_gtf
+    ref_genome_fasta
     flnc_bam
     
     main:
-    extract_transcriptome(filtered_gtf)
+    extract_transcriptome(filtered_gtf, ref_genome_fasta)
     flnc_bam.map { _id, file -> file }.collect().set { flnc_bams }
     merge_flnc_bams(flnc_bams.collect())
     convert_flnc_bam_to_fastqz(merge_flnc_bams.out.flatten())

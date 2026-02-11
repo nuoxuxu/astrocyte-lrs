@@ -6,6 +6,7 @@ process runORFanage {
     input:
     path ref_genome_fasta
     tuple val(param_set_name), path(final_sample_gtf)
+    path annotation_gtf
 
     output:
     tuple val(param_set_name), path("orfanage_with_gene_id.gtf"), emit: orfanage_gtf
@@ -20,7 +21,7 @@ process runORFanage {
         --threads $task.cpus \\
         --minlen 50 \\
         --stats orfanage.stats \\
-        ${params.annotation_gtf}
+        $annotation_gtf
 
     gffread \\
         -g $ref_genome_fasta \\
@@ -75,11 +76,12 @@ workflow RUN_ORFANAGE {
     take:
     ref_genome_fasta
     final_transcripts_gtf
+    annotation_gtf
 
     main:
-    runORFanage(ref_genome_fasta, final_transcripts_gtf)
+    runORFanage(ref_genome_fasta, final_transcripts_gtf, annotation_gtf)
     fixORFanageFormat(ref_genome_fasta, runORFanage.out.orfanage_gtf)
-    translateORFs(params.ref_genome_fasta, fixORFanageFormat.out)
+    translateORFs(ref_genome_fasta, fixORFanageFormat.out)
 
     emit:
     orfanage_gtf = fixORFanageFormat.out
