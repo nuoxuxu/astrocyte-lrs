@@ -128,6 +128,29 @@ process filter_by_expression {
     """
 }
 
+process GffCompare {
+    module "StdEnv/2023:gffcompare/0.12.6"
+    label "short_slurm_job"
+    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
+
+    input:
+    path annotation_gtf
+    tuple val(param_set_name), path(final_transcripts_gtf)
+
+    output:
+    path("gffcmp.annotated.gtf"), emit: gffcmp_annotated_sgtf
+    path("gffcmp.loci"), emit: gffcmp_loci
+    path("gffcmp.stats"), emit: gffcmp_stats
+    path("gffcmp.tracking"), emit: gffcmp_tracking
+    path("gffcmp.final_transcripts.gtf.refmap"), emit: refmap
+    path("gffcmp.final_transcripts.gtf.tmap"), emit: tmap
+    
+    script:
+    """
+    gffcompare -r $annotation_gtf $final_transcripts_gtf
+    """
+}
+
 workflow SQANTI_AND_FILTER_BY_EXP {
     take:
     input_rna_fastq
