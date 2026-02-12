@@ -6,6 +6,7 @@ include { RUN_ORFANAGE } from "./subworkflows/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/riboseq"
 include { GET_QUALITY_METRICS } from "./subworkflows/quality"
 include { ISOFORMSWITCH } from "./subworkflows/IsoformSwitchAnalyzeR/main.nf"
+include { RIBOTIE_VISUALIZATION } from "./subworkflows/visualization/main.nf"
 
 workflow {
     channel.value(file(params.kinnex_adapters)).set { kinnex_adapters }
@@ -28,6 +29,7 @@ workflow {
     PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta)
     GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db, RUN_ORFANAGE.out.orfanage_proteins, pfamdb)
     ISOFORMSWITCH(SQANTI_AND_FILTER_BY_EXP.out.final_expression, primer_to_sample, SQANTI_AND_FILTER_BY_EXP.out.corrected_fasta, RUN_ORFANAGE.out.orfanage_gtf, annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification)
+    RIBOTIE_VISUALIZATION(params.ribotie_training_outputs, RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_expression, SQANTI_AND_FILTER_BY_EXP.out.final_classification)
     // -------------------Testing PREPARE_RIBOTIE-----------------
     // orfanage_gtf = channel.of(
     //     ["low_stringency", "/scratch/nxu/astrocytes/nextflow_results/orfanage/low_stringency/orfanage.gtf"],
