@@ -153,7 +153,7 @@ process GffCompare {
 
 workflow SQANTI_AND_FILTER_BY_EXP {
     take:
-    input_rna_fastq
+    short_read_fastqs
     annotation_gtf
     ref_genome_fasta
     refTSS
@@ -164,7 +164,9 @@ workflow SQANTI_AND_FILTER_BY_EXP {
     star_genomeGenerate_outputDir
 
     main:
-    channel.fromFilePairs(input_rna_fastq).set { short_read_fastqs }
+    channel.fromFilePairs(short_read_fastqs).set { short_read_fastqs }
+    channel.fromList(filter_configs).set { isoform_exp_filter_params }
+
     star_genomeGenerate(ref_genome_fasta, annotation_gtf, star_genomeGenerate_outputDir)
     star_sr_genome(star_genomeGenerate.out, short_read_fastqs, annotation_gtf)
     sqanti_qc(merged_sorted_collapsed_gtf, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, star_sr_genome.out.star_aligned_bam.collect(), star_sr_genome.out.star_sj_tab.collect())    
@@ -174,10 +176,10 @@ workflow SQANTI_AND_FILTER_BY_EXP {
         .map { dir -> dir / "sqanti_qc_results_classification.txt" }
     sqanti_filter(isoseq_corrected_gtf, isoseq_classification)
     def filtered_gtf = sqanti_filter.out
-        .map {dir -> dir / "default.filtered.gtf"}
+        .map { dir -> dir / "default.filtered.gtf"}
     def filtered_classification = sqanti_filter.out
-        .map {dir -> dir / "default_RulesFilter_result_classification.txt"}
-    isoform_exp_filter_params = channel.fromList(filter_configs)        
+        .map { dir -> dir / "default_RulesFilter_result_classification.txt" }
+    
     filter_by_expression_input_ch = oarfish_quant
         .collect()
         .toList()
@@ -185,10 +187,13 @@ workflow SQANTI_AND_FILTER_BY_EXP {
         .combine(filtered_gtf)
         .combine(isoform_exp_filter_params)
     filter_by_expression(filter_by_expression_input_ch)
+    GffCompare(annotation_gtf, filter_by_expression.out.final_transcripts_gtf)
 
     emit:
     final_classification = filter_by_expression.out.final_classification
     final_transcripts_gtf = filter_by_expression.out.final_transcripts_gtf
     final_expression = filter_by_expression.out.final_expression
     star_genomeDir = star_genomeGenerate.out
+    corrected_fasta = sqanti_qc.out
+        .map { dir -> dir / "sqanti_qc_results_corrected.fasta" }
 }

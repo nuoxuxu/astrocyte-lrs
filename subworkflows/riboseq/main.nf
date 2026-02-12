@@ -2,6 +2,7 @@ process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
     storeDir "nextflow_results/orfanage/${param_set_name}"
+    
     input:
     tuple val(param_set_name), path(orfanage_gtf)
     tuple val(param_set_name_2), path(final_classification)
@@ -109,24 +110,29 @@ workflow PREPARE_RIBOTIE {
     ref_genome_fasta
 
     main:
+    channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
+    
     custom_gtf = format_gtf_for_ribotie(orfanage_gtf, final_classification, annotation_gtf)
+    
     sjdbGTFfile_tuples = custom_gtf
         .mix(
-            channel.of("gencode")
-                .mix(channel.fromPath(annotation_gtf))
+            channel.value("gencode")
+                .concat(annotation_gtf)
                 .collect()
         )
     star_genomeDir
-        .combine(channel.fromPath(riboseq_unmapped_to_contaminants))
-        .combine(sjdbGTFfile_tuples)
+        .combine(riboseq_unmapped_to_contaminants)
+        .combine(sjdbGTFfile_tuples)        
         | star_riboseq
 
     generate_ribotie_yml(sjdbGTFfile_tuples, ref_genome_fasta, star_riboseq.out.transcriptome_bam.groupTuple())
+    
     sjdbGTFfile_tuples
         .join(star_riboseq.out.transcriptome_bam.groupTuple())
         .join(generate_ribotie_yml.out)
-        .combine(channel.of(ref_genome_fasta))
+        .combine(ref_genome_fasta)
         | generate_ribotie_db
+    
     generate_ribotie_db
         .out
         .toList()

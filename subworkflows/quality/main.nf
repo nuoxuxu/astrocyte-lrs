@@ -61,8 +61,8 @@ workflow GET_QUALITY_METRICS {
 
     unstim_input_ch
         .mix(stim_input_ch)
-        .combine(channel.fromPath(PhyloCSFpp_db))
+        .combine(PhyloCSFpp_db)
         | phylocsfpp
 
-    pfam_scan(translation_fasta, channel.fromPath(pfamdb))
+    // pfam_scan(translation_fasta, channel.fromPath(pfamdb))
 }

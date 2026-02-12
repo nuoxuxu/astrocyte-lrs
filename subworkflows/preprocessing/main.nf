@@ -74,13 +74,14 @@ workflow PREPROCESSING {
     biosamples_csv
 
     main:
-    channel.fromPath(hifi_reads_bam)
+    channel.fromPath(params.hifi_reads_bam)
         .map { file -> 
             def sample_id = file.simpleName
             return tuple(sample_id, file) 
         }
-        .set { hifi_bams }
-    skera(hifi_bams, kinnex_adapters)
+        .set { hifi_reads_bam }
+        
+    skera(hifi_reads_bam, kinnex_adapters)
     lima(skera.out, isoseq_primers, biosamples_csv)
     refine(lima.out.demultiplexed_bam, isoseq_primers)
 
