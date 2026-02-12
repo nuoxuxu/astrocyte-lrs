@@ -37,6 +37,10 @@ workflow {
             def outputs = results.collect { param_set_name, _ribotie_res_, _models, _multiqc ->
                 [
                     param_set_name: param_set_name,
+                    ribotie_unstim_gtf: "nextflow_results/ribotie/${param_set_name}/ribotie_res_Unstim.gtf",
+                    ribotie_unstim_csv: "nextflow_results/ribotie/${param_set_name}/ribotie_res_Unstim.csv",
+                    ribotie_stim_gtf: "nextflow_results/ribotie/${param_set_name}/ribotie_res_Stim.gtf",
+                    ribotie_stim_csv: "nextflow_results/ribotie/${param_set_name}/ribotie_res_Stim.csv",
                     ribotie_unstim_novel_gtf: "nextflow_results/ribotie/${param_set_name}/ribotie_res_Unstim.novel.gtf",
                     ribotie_unstim_novel_csv: "nextflow_results/ribotie/${param_set_name}/ribotie_res_Unstim.novel.csv",
                     ribotie_stim_novel_gtf: "nextflow_results/ribotie/${param_set_name}/ribotie_res_Stim.novel.gtf",
