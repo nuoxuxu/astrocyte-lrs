@@ -21,6 +21,27 @@ process format_gtf_for_ribotie {
     """
 }
 
+// Subset GENCODE annotation to only include transcripts that are present in the custom GTF
+process subset_GENCODE_tx {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/ribotie/"
+
+    input:
+    tuple val(param_set_name), path(final_classification), path(tmap), path(annotation_gtf)
+
+    output:
+    tuple val("gencode_low"), path("gencode_supported_transcripts.gtf")
+    
+    script:
+    """
+    subset_gencode_by_tmap.py \\
+        --tmap $tmap \\
+        --gtf $annotation_gtf \\
+        --output gencode_supported_transcripts.gtf
+    """
+}
+
 process star_riboseq {
     module "StdEnv/2023:star/2.7.11b"
     label "short_slurm_job"
@@ -108,8 +129,17 @@ workflow PREPARE_RIBOTIE {
     star_genomeDir
     riboseq_unmapped_to_contaminants
     ref_genome_fasta
+    tmap
 
     main:
+    final_classification
+        .filter { label, file -> 
+            label == "low_stringency" 
+        }
+        .join(tmap)
+        .concat(annotation_gtf)
+        .subset_GENCODE_tx
+
     channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
     
     custom_gtf = format_gtf_for_ribotie(orfanage_gtf, final_classification, annotation_gtf)
@@ -120,6 +150,10 @@ workflow PREPARE_RIBOTIE {
                 .concat(annotation_gtf)
                 .collect()
         )
+        .mix(
+            subset_GENCODE_tx.out
+        )
+
     star_genomeDir
         .combine(riboseq_unmapped_to_contaminants)
         .combine(sjdbGTFfile_tuples)        

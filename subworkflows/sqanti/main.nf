@@ -138,12 +138,12 @@ process GffCompare {
     tuple val(param_set_name), path(final_transcripts_gtf)
 
     output:
-    path("gffcmp.annotated.gtf"), emit: gffcmp_annotated_sgtf
-    path("gffcmp.loci"), emit: gffcmp_loci
-    path("gffcmp.stats"), emit: gffcmp_stats
-    path("gffcmp.tracking"), emit: gffcmp_tracking
-    path("gffcmp.final_transcripts.gtf.refmap"), emit: refmap
-    path("gffcmp.final_transcripts.gtf.tmap"), emit: tmap
+    tuple val(param_set_name), path("gffcmp.annotated.gtf"), emit: gffcmp_annotated_sgtf
+    tuple val(param_set_name), path("gffcmp.loci"), emit: gffcmp_loci
+    tuple val(param_set_name), path("gffcmp.stats"), emit: gffcmp_stats
+    tuple val(param_set_name), path("gffcmp.tracking"), emit: gffcmp_tracking
+    tuple val(param_set_name), path("gffcmp.final_transcripts.gtf.refmap"), emit: refmap
+    tuple val(param_set_name), path("gffcmp.final_transcripts.gtf.tmap"), emit: tmap
     
     script:
     """
@@ -196,4 +196,5 @@ workflow SQANTI_AND_FILTER_BY_EXP {
     star_genomeDir = star_genomeGenerate.out
     corrected_fasta = sqanti_qc.out
         .map { dir -> dir / "sqanti_qc_results_corrected.fasta" }
+    tmap = GffCompare.out.tmap
 }
