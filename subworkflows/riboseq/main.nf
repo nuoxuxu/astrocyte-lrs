@@ -78,7 +78,7 @@ process star_riboseq {
 }
 
 process generate_ribotie_yml {
-    module "python"
+    beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
     storeDir "nextflow_results/ribotie/${param_set_name}"
 
@@ -137,8 +137,8 @@ workflow PREPARE_RIBOTIE {
             label == "low_stringency" 
         }
         .join(tmap)
-        .concat(annotation_gtf)
-        .subset_GENCODE_tx
+        .combine(annotation_gtf)
+        | subset_GENCODE_tx
 
     channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
     
@@ -166,9 +166,8 @@ workflow PREPARE_RIBOTIE {
         .join(generate_ribotie_yml.out)
         .combine(ref_genome_fasta)
         | generate_ribotie_db
-    
-    generate_ribotie_db
-        .out
+
+    generate_ribotie_db.out
         .toList()
         .map { results ->
             def outputs = results.collect { param_name, gtf_h5, ribotie_h5 ->

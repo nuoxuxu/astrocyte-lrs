@@ -24,10 +24,10 @@ workflow {
     PREPROCESSING(params.hifi_reads_bam, kinnex_adapters, isoseq_primers, biosamples_csv)
     ISOSEQ(PREPROCESSING.out.flnc_bam, ref_genome_fasta)
     RUN_OARFISH(ISOSEQ.out.merged_sorted_collapsed_gtf, ref_genome_fasta, PREPROCESSING.out.flnc_bam)
-    SQANTI_AND_FILTER_BY_EXP(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, params.filter_configs, RUN_OARFISH.out.oarfish_quant, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name)
+    SQANTI_AND_FILTER_BY_EXP(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, params.filter_configs, RUN_OARFISH.out.oarfish_quant, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name, params.ref_genome_fasta)
     RUN_ORFANAGE(ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.out.final_transcripts_gtf, annotation_gtf)
-    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta)
-    GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db, RUN_ORFANAGE.out.orfanage_proteins, pfamdb)
+    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.out.tmap)
+    GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db, RUN_ORFANAGE.out.orfanage_proteins, pfamdb, SQANTI_AND_FILTER_BY_EXP.out.nt_fasta, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
     ISOFORMSWITCH(SQANTI_AND_FILTER_BY_EXP.out.final_expression, primer_to_sample, SQANTI_AND_FILTER_BY_EXP.out.corrected_fasta, RUN_ORFANAGE.out.orfanage_gtf, annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification)
     RIBOTIE_VISUALIZATION(params.ribotie_training_outputs, RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_expression, SQANTI_AND_FILTER_BY_EXP.out.final_classification)
     // -------------------Testing PREPARE_RIBOTIE-----------------
