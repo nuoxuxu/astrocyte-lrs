@@ -151,10 +151,28 @@ process GffCompare {
     """
 }
 
-process get_nt_fasta {
-    module "StdEnv/2023:bedtools/2.31.0"
+process subset_corrected_fasta {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
     storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
-    
+
+    input:
+    tuple val(param_set_name), path(final_transcripts_gtf)
+    path corrected_fasta
+
+    output:
+    tuple val(param_set_name), path("corrected_filtered.fasta")
+
+    script:
+    """
+    subset_fasta_by_gtf.py --gtf $final_transcripts_gtf --fasta $corrected_fasta --output corrected_filtered.fasta
+    """
+}
+
+process get_nt_fasta {
+    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
+    container "quay.io/biocontainers/agat:1.4.2--pl5321hdfd78af_0"
+
     input:
     tuple val(param_set_name), path(final_transcripts_gtf)
     path(ref_genome_fasta)
@@ -164,7 +182,7 @@ process get_nt_fasta {
     
     script:
     """
-    awk '\$3 == "exon"' $final_transcripts_gtf | bedtools getfasta -fi $ref_genome_fasta -bed stdin -fo final_transcripts_nt.fasta
+    agat_sp_extract_sequences.pl -g $final_transcripts_gtf -f $ref_genome_fasta -t cds -o final_transcripts_nt.fasta
     """
 }
 
@@ -208,13 +226,16 @@ workflow SQANTI_AND_FILTER_BY_EXP {
     GffCompare(annotation_gtf, filter_by_expression.out.final_transcripts_gtf)
     get_nt_fasta(filter_by_expression.out.final_transcripts_gtf, ref_genome_fastas)
 
+    def sqanti_corrected_fasta = sqanti_qc.out
+        .map { dir -> dir / "sqanti_qc_results_corrected.fasta" }
+    subset_corrected_fasta(filter_by_expression.out.final_transcripts_gtf, sqanti_corrected_fasta)
+
     emit:
     final_classification = filter_by_expression.out.final_classification
     final_transcripts_gtf = filter_by_expression.out.final_transcripts_gtf
     final_expression = filter_by_expression.out.final_expression
     star_genomeDir = star_genomeGenerate.out
-    corrected_fasta = sqanti_qc.out
-        .map { dir -> dir / "sqanti_qc_results_corrected.fasta" }
+    corrected_fasta = subset_corrected_fasta.out
     tmap = GffCompare.out.tmap
     nt_fasta = get_nt_fasta.out
 }

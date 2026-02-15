@@ -36,7 +36,7 @@ workflow ISOFORMSWITCH {
         .join(orfanage_gtf)
         .join(final_classification)
         .combine(primer_to_sample)
-        .combine(corrected_fasta)
+        .join(corrected_fasta)
         .combine(annotation_gtf)
     | IsoseqsSwitchList
     // IsoseqsSwitchList(final_expression, primer_to_sample, corrected_fasta, orfanage_gtf, annotation_gtf, final_classification)

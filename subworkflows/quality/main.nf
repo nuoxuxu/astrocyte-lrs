@@ -50,7 +50,10 @@ process run_cpat {
     tuple val(param_set_name), path(nt_fasta)
 
     output:
-    path("CPAT.ORF_seqs.fa")
+    path("CPAT.ORF_prob.tsv"), emit: ORF_prob_tsv
+    path("CPAT.ORF_prob.best.tsv"), emit: ORF_prob_best_tsv
+    path("CPAT.ORF_seqs.fa"), emit: ORF_seqs_fa
+    path("CPAT.no_ORF.txt"), emit: no_ORF_txt
 
     script:
     """
