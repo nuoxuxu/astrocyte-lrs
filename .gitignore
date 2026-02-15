@@ -4,7 +4,8 @@ proc/
 notebooks/
 .nextflow/
 .vscode/
-astrocyte_vis_app/
+astrocyte_vis_app/**
+!astrocyte_vis_app/app.R
 slurm_logs/
 .nextflow.log*
 figures/
