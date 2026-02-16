@@ -61,6 +61,54 @@ IsoseqsSwitchList <- isoformSwitchTestDEXSeq(
     showProgress = TRUE
 )
 
+# Gene-level differential expression via DESeq2
+geneCountMatrix <- extractGeneExpression(
+    IsoseqsSwitchList,
+    extractCounts = TRUE
+)
+
+geneDDS <- DESeqDataSetFromMatrix(
+    countData = round(geneCountMatrix[, -1]),
+    colData = IsoseqsSwitchList$designMatrix,
+    design = ~ condition
+)
+geneDDS <- DESeq(geneDDS)
+geneRes <- results(geneDDS)
+geneDE <- data.frame(
+    gene_id = geneCountMatrix[, 1],
+    gene_q_value = geneRes$padj
+)
+geneDE$gene_q_value[is.na(geneDE$gene_q_value)] <- 1
+
+# Isoform-level differential expression via DESeq2
+isoCountMatrix <- IsoseqsSwitchList$isoformCountMatrix
+
+isoDDS <- DESeqDataSetFromMatrix(
+    countData = round(isoCountMatrix),
+    colData = IsoseqsSwitchList$designMatrix,
+    design = ~ condition
+)
+isoDDS <- DESeq(isoDDS)
+isoRes <- results(isoDDS)
+isoDE <- data.frame(
+    isoform_id = rownames(isoCountMatrix),
+    iso_q_value = isoRes$padj
+)
+isoDE$iso_q_value[is.na(isoDE$iso_q_value)] <- 1
+
+# Import DE results into switchAnalyzeRlist
+idx_gene <- match(
+    IsoseqsSwitchList$isoformFeatures$gene_id,
+    geneDE$gene_id
+)
+IsoseqsSwitchList$isoformFeatures$gene_q_value <- geneDE$gene_q_value[idx_gene]
+
+idx_iso <- match(
+    IsoseqsSwitchList$isoformFeatures$isoform_id,
+    isoDE$isoform_id
+)
+IsoseqsSwitchList$isoformFeatures$iso_q_value <- isoDE$iso_q_value[idx_iso]
+
 gene_id_mapping <- rtracklayer::import(args$annotation_gtf) %>% 
   as_tibble() %>%
   filter(type == 'gene') %>%
