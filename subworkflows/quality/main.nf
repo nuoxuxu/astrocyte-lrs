@@ -1,6 +1,6 @@
 process pfam_scan {
     conda "/scratch/nxu/astrocytes/env"
-    label "mid_slurm_job"
+    label "long_slurm_job"
     storeDir "nextflow_results/quality/${param_set_name}"
 
     input:
@@ -105,5 +105,5 @@ workflow GET_QUALITY_METRICS {
 
     run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, nt_fasta)
 
-    pfam_scan(translation_fasta, channel.fromPath(pfamdb))
+    pfam_scan(translation_fasta, pfamdb)
 }

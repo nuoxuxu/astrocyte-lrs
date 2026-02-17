@@ -169,23 +169,6 @@ process subset_corrected_fasta {
     """
 }
 
-process get_nt_fasta {
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
-    container "quay.io/biocontainers/agat:1.4.2--pl5321hdfd78af_0"
-
-    input:
-    tuple val(param_set_name), path(final_transcripts_gtf)
-    path(ref_genome_fasta)
-    
-    output:
-    tuple val(param_set_name), path("final_transcripts_nt.fasta")
-    
-    script:
-    """
-    agat_sp_extract_sequences.pl -g $final_transcripts_gtf -f $ref_genome_fasta -t cds -o final_transcripts_nt.fasta
-    """
-}
-
 workflow SQANTI_AND_FILTER_BY_EXP {
     take:
     short_read_fastqs
@@ -224,7 +207,6 @@ workflow SQANTI_AND_FILTER_BY_EXP {
         .combine(isoform_exp_filter_params)
     filter_by_expression(filter_by_expression_input_ch)
     GffCompare(annotation_gtf, filter_by_expression.out.final_transcripts_gtf)
-    get_nt_fasta(filter_by_expression.out.final_transcripts_gtf, ref_genome_fastas)
 
     def sqanti_corrected_fasta = sqanti_qc.out
         .map { dir -> dir / "sqanti_qc_results_corrected.fasta" }
@@ -235,7 +217,6 @@ workflow SQANTI_AND_FILTER_BY_EXP {
     final_transcripts_gtf = filter_by_expression.out.final_transcripts_gtf
     final_expression = filter_by_expression.out.final_expression
     star_genomeDir = star_genomeGenerate.out
-    corrected_fasta = subset_corrected_fasta.out
+    subset_corrected_fasta = subset_corrected_fasta.out
     tmap = GffCompare.out.tmap
-    nt_fasta = get_nt_fasta.out
 }
