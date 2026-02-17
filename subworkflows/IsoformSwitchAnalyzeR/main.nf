@@ -21,6 +21,79 @@ process IsoseqsSwitchList {
     """
 }
 
+process run_cpat {
+    module "python:gcc:arrow/19.0.1:rust:r/4.4.0"
+    beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
+    label "short_slurm_job"
+    storeDir "nextflow_results/ribotie/${param_set_name}"
+    
+    input:
+    path(Human_coding_transcripts_CDS)
+    path(Human_noncoding_transcripts_RNA)
+    path(Human_logitModel)
+    tuple val(param_set_name), path(nt_fasta)
+
+    output:
+    path("CPAT.ORF_prob.tsv"), emit: ORF_prob_tsv
+    path("CPAT.ORF_prob.best.tsv"), emit: ORF_prob_best_tsv
+    path("CPAT.ORF_seqs.fa"), emit: ORF_seqs_fa
+    path("CPAT.no_ORF.txt"), emit: no_ORF_txt
+
+    script:
+    """
+    make_hexamer_tab -c $Human_coding_transcripts_CDS -n $Human_noncoding_transcripts_RNA > Human_Hexamer.tsv
+
+    cpat \\
+        -x Human_Hexamer.tsv \\
+        -d $Human_logitModel \\
+        -g $nt_fasta \\
+        --min-orf=50 \\
+        --top-orf=50 \\
+        -o CPAT \\
+        1> CPAT.output \\
+        2> CPAT.error
+    """
+}
+
+process pfam_scan {
+    conda "/scratch/nxu/astrocytes/env"
+    label "long_slurm_job"
+    storeDir "nextflow_results/quality/${param_set_name}"
+
+    input:
+    tuple val(param_set_name), path(translation_fasta)
+    path(pfamdb)
+    
+    output:
+    tuple val(param_set_name), path("pfam_scan_results.csv")
+    
+    script:
+    """
+    pfam_scan.py \\
+        -out pfam_scan_results.csv \\
+        -outfmt csv \\
+        $translation_fasta \\
+        $pfamdb
+    """
+}
+
+process convert_pfam_scan_results {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality/${param_set_name}"
+
+    input:
+    tuple val(param_set_name), path(pfam_scan_results)
+
+    output:
+    tuple val(param_set_name), path("pfam_scan_results_modified.txt")
+
+    script:
+    """
+    convert_pfam_csv_to_txt.py $pfam_scan_results > pfam_scan_results_modified.txt
+    """
+}
+
 workflow ISOFORMSWITCH {
     take:
     final_expression
@@ -29,6 +102,12 @@ workflow ISOFORMSWITCH {
     orfanage_gtf
     annotation_gtf
     final_classification
+    translation_fasta
+    pfamdb
+    nt_fasta
+    Human_coding_transcripts_CDS
+    Human_noncoding_transcripts_RNA
+    Human_logitModel    
 
     main:
     
@@ -39,5 +118,7 @@ workflow ISOFORMSWITCH {
         .join(corrected_fasta)
         .combine(annotation_gtf)
     | IsoseqsSwitchList
-    // IsoseqsSwitchList(final_expression, primer_to_sample, corrected_fasta, orfanage_gtf, annotation_gtf, final_classification)
+
+    run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, nt_fasta)
+    pfam_scan(translation_fasta, pfamdb)    
 }

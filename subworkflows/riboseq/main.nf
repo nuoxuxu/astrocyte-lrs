@@ -4,9 +4,7 @@ process format_gtf_for_ribotie {
     storeDir "nextflow_results/orfanage/${param_set_name}"
     
     input:
-    tuple val(param_set_name), path(orfanage_gtf)
-    tuple val(param_set_name_2), path(final_classification)
-    path annotation_gtf
+    tuple val(param_set_name), path(orfanage_gtf), path(final_classification), path(annotation_gtf)
 
     output:
     tuple val(param_set_name), path("orfanage_numbered_exons.gtf")
@@ -25,7 +23,7 @@ process format_gtf_for_ribotie {
 process subset_GENCODE_tx {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/"
+    storeDir "nextflow_results/ribotie/gencode_low"
 
     input:
     tuple val(param_set_name), path(final_classification), path(tmap), path(annotation_gtf)
@@ -80,15 +78,12 @@ process star_riboseq {
 process generate_ribotie_yml {
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/${param_set_name}"
+    storeDir "nextflow_results/ribotie/${param_set_name}/${mode}"
 
     input:
-    tuple val(param_set_name), path(gtf_path)
-    path ref_genome_fasta
-    tuple val(param_set_name_2), path(transcriptome_bam)
-
+    tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), val(mode), path(ref_genome_fasta)
     output:
-    tuple val(param_set_name), path("RiboTIE.yml")
+    tuple val(param_set_name), val(mode), path("RiboTIE.yml")
 
     script:
     """
@@ -106,13 +101,13 @@ process generate_ribotie_yml {
 process generate_ribotie_db {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/${param_set_name}"
+    storeDir "nextflow_results/ribotie/${param_set_name}/${mode}"
 
     input:
-    tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), path(ribotie_yml), path(ref_genome_fasta)
+    tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), val(mode), path(ribotie_yml), path(ref_genome_fasta)
     
     output:
-    tuple val(param_set_name), path("${gtf_path.baseName}.h5"), path("ribotie_res.h5")
+    tuple val(param_set_name), path("${gtf_path.baseName}.h5"), path("ribotie_res.h5"), val(mode)
 
     script:
     """
@@ -132,6 +127,8 @@ workflow PREPARE_RIBOTIE {
     tmap
 
     main:
+    channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
+
     final_classification
         .filter { label, file -> 
             label == "low_stringency" 
@@ -140,11 +137,10 @@ workflow PREPARE_RIBOTIE {
         .combine(annotation_gtf)
         | subset_GENCODE_tx
 
-    channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
-    
-    custom_gtf = format_gtf_for_ribotie(orfanage_gtf, final_classification, annotation_gtf)
-    
-    sjdbGTFfile_tuples = custom_gtf
+    sjdbGTFfile_tuples = orfanage_gtf
+        .join(final_classification)
+        .join(annotation_gtf)
+        | format_gtf_for_ribotie
         .mix(
             channel.value("gencode")
                 .concat(annotation_gtf)
@@ -159,7 +155,11 @@ workflow PREPARE_RIBOTIE {
         .combine(sjdbGTFfile_tuples)        
         | star_riboseq
 
-    generate_ribotie_yml(sjdbGTFfile_tuples, ref_genome_fasta, star_riboseq.out.transcriptome_bam.groupTuple())
+    sjdbGTFfile_tuples
+        .join(star_riboseq.out.genome_bam.groupTuple())
+        .combine(channel.of(["merged", "separate"]))
+        .combine(ref_genome_fasta)
+        | generate_ribotie_yml
     
     sjdbGTFfile_tuples
         .join(star_riboseq.out.transcriptome_bam.groupTuple())
@@ -170,13 +170,13 @@ workflow PREPARE_RIBOTIE {
     generate_ribotie_db.out
         .toList()
         .map { results ->
-            def outputs = results.collect { param_name, gtf_h5, ribotie_h5 ->
+            def outputs = results.collect { param_name, gtf_h5, ribotie_h5, mode ->
                 [
                     param_set_name: param_name,
-                    gtf_h5: "nextflow_results/ribotie/${param_name}/${gtf_h5.name}",
-                    ribotie_h5: "nextflow_results/ribotie/${param_name}/${ribotie_h5.name}",
-                    base_dir: "nextflow_results/ribotie/${param_name}",
-                    ribotie_yml: "nextflow_results/ribotie/${param_name}/RiboTIE.yml"
+                    gtf_h5: "nextflow_results/ribotie/${param_name}/${mode}/${gtf_h5.name}",
+                    ribotie_h5: "nextflow_results/ribotie/${param_name}/${mode}/${ribotie_h5.name}",
+                    base_dir: "nextflow_results/ribotie/${param_name}/${mode}",
+                    ribotie_yml: "nextflow_results/ribotie/${param_name}/${mode}/RiboTIE.yml"
                 ]
             }
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))

@@ -31,7 +31,7 @@ process plot_ribotie_figures {
     """
 }
 
-workflow RIBOTIE_VISUALIZATION {
+workflow RIBOTIE_POSTANALYSIS {
     take:
     ribotie_training_outputs
     orfanage_gtf

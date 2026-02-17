@@ -51,10 +51,18 @@ def main():
     parser.add_argument("--h5", required=True, help="Path to output HDF5 file")
     parser.add_argument("--out-prefix", required=True, help="Output prefix")
     parser.add_argument(
+        "--mode",
+        required=True,
+        choices=["merged", "separate"],
+        help="'merged': all samples in one group (flat list); "
+        "'separate': samples split into groups (requires --samples)",
+    )
+    parser.add_argument(
         "--samples",
         nargs="+",
         metavar="GROUP:key1,key2",
-        help="Sample groupings, e.g. Unstim:astro_A,astro_B Stim:astro_C,astro_D",
+        help="Sample groupings, e.g. Unstim:astro_A,astro_B Stim:astro_C,astro_D "
+        "(required when --mode=separate)",
     )
     parser.add_argument(
         "-o",
@@ -85,10 +93,13 @@ def main():
         "out_prefix": args.out_prefix,
     }
 
-    # Add samples if provided
-    if args.samples:
-        samples = parse_samples(args.samples, list(ribo_paths.keys()))
-        config["samples"] = samples
+    # Add samples
+    if args.mode == "merged":
+        config["samples"] = list(ribo_paths.keys())
+    else:
+        if not args.samples:
+            parser.error("--samples is required when --mode=separate")
+        config["samples"] = parse_samples(args.samples, list(ribo_paths.keys()))
 
     with open(args.output, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
