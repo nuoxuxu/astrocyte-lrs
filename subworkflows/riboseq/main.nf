@@ -131,7 +131,7 @@ workflow PREPARE_RIBOTIE {
     channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
 
     final_classification
-        .filter { label, file -> 
+        .filter { label, _file -> 
             label == "low_stringency" 
         }
         .join(tmap)

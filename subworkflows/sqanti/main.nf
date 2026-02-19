@@ -116,7 +116,6 @@ workflow SQANTI {
     polyA_motif_list
     merged_sorted_collapsed_gtf
     star_genomeGenerate_outputDir
-    ref_genome_fastas
 
     main:
     channel.fromFilePairs(short_read_fastqs).set { short_read_fastqs }
