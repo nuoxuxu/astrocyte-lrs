@@ -50,10 +50,7 @@ process transcript_visualization {
     storeDir "nextflow_results/figures"
 
     input:
-    tuple val(param_set_name), path(final_classification)
-    tuple val(param_set_name), path(final_transcripts_gtf)
-    tuple val(param_set_name), path(final_expression)
-    tuple val(param_set_name), path(final_fasta)
+    tuple val(param_set_name), path(final_classification), path(final_transcripts_gtf), path(final_expression)
     
     output:
     path("${param_set_name}_transcripts.pdf")
@@ -87,7 +84,13 @@ workflow FILTER_BY_EXPRESSION {
         .combine(sqanti_corrected_fasta)
         .combine(isoform_exp_filter_params)
     filter_by_expression(filter_by_expression_input_ch)
+    
     GffCompare(annotation_gtf, filter_by_expression.out.final_transcripts_gtf)
+
+    filter_by_expression.out.final_classification
+        .join(filter_by_expression.out.final_transcripts_gtf)
+        .join(filter_by_expression.out.final_expression)
+        | transcript_visualization
 
     emit:
     final_classification = filter_by_expression.out.final_classification
