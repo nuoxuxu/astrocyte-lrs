@@ -89,14 +89,14 @@ process sqanti_filter {
     conda "/scratch/nxu/SQANTI3/env"
     label "short_slurm_job"
     storeDir "nextflow_results/sqanti3/isoseq"
-    
+
     input:
     path corrected_gtf
     path classification
-    
+
     output:
     path("sqanti3_filter")
-    
+
     script:
     """
     sqanti3_filter.py rules \\
@@ -107,116 +107,38 @@ process sqanti_filter {
     """
 }
 
-process filter_by_expression {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
-
-    input:
-    tuple path(oarfish_quant_files), path(filtered_classification), path(filtered_gtf), val(param_set_name), val(min_reads), val(min_n_sample)
-
-    output:
-    tuple val(param_set_name), path("final_classification.parquet"), emit: final_classification
-    tuple val(param_set_name), path("final_transcripts.gtf"), emit: final_transcripts_gtf
-    tuple val(param_set_name), path("final_expression.parquet"), emit: final_expression
-    
-    script:
-    """
-    get_counts_from_oarfish.py \\
-        --min_reads ${min_reads} \\
-        --min_n_sample ${min_n_sample}
-    """
-}
-
-process GffCompare {
-    module "StdEnv/2023:gffcompare/0.12.6"
-    label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
-
-    input:
-    path annotation_gtf
-    tuple val(param_set_name), path(final_transcripts_gtf)
-
-    output:
-    tuple val(param_set_name), path("gffcmp.annotated.gtf"), emit: gffcmp_annotated_sgtf
-    tuple val(param_set_name), path("gffcmp.loci"), emit: gffcmp_loci
-    tuple val(param_set_name), path("gffcmp.stats"), emit: gffcmp_stats
-    tuple val(param_set_name), path("gffcmp.tracking"), emit: gffcmp_tracking
-    tuple val(param_set_name), path("gffcmp.final_transcripts.gtf.refmap"), emit: refmap
-    tuple val(param_set_name), path("gffcmp.final_transcripts.gtf.tmap"), emit: tmap
-    
-    script:
-    """
-    gffcompare -r $annotation_gtf $final_transcripts_gtf
-    """
-}
-
-process subset_corrected_fasta {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
-
-    input:
-    tuple val(param_set_name), path(final_transcripts_gtf)
-    path corrected_fasta
-
-    output:
-    tuple val(param_set_name), path("corrected_filtered.fasta")
-
-    script:
-    """
-    subset_fasta_by_gtf.py --gtf $final_transcripts_gtf --fasta $corrected_fasta --output corrected_filtered.fasta
-    """
-}
-
-workflow SQANTI_AND_FILTER_BY_EXP {
+workflow SQANTI {
     take:
     short_read_fastqs
     annotation_gtf
     ref_genome_fasta
     refTSS
     polyA_motif_list
-    filter_configs
-    oarfish_quant
     merged_sorted_collapsed_gtf
     star_genomeGenerate_outputDir
     ref_genome_fastas
 
     main:
     channel.fromFilePairs(short_read_fastqs).set { short_read_fastqs }
-    channel.fromList(filter_configs).set { isoform_exp_filter_params }
 
     star_genomeGenerate(ref_genome_fasta, annotation_gtf, star_genomeGenerate_outputDir)
     star_sr_genome(star_genomeGenerate.out, short_read_fastqs, annotation_gtf)
-    sqanti_qc(merged_sorted_collapsed_gtf, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, star_sr_genome.out.star_aligned_bam.collect(), star_sr_genome.out.star_sj_tab.collect())    
-    def isoseq_corrected_gtf = sqanti_qc.out
+    sqanti_qc(merged_sorted_collapsed_gtf, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, star_sr_genome.out.star_aligned_bam.collect(), star_sr_genome.out.star_sj_tab.collect())
+    isoseq_corrected_gtf = sqanti_qc.out
         .map { dir -> dir / "sqanti_qc_results_corrected.gtf" }
-    def isoseq_classification = sqanti_qc.out
+    isoseq_classification = sqanti_qc.out
         .map { dir -> dir / "sqanti_qc_results_classification.txt" }
     sqanti_filter(isoseq_corrected_gtf, isoseq_classification)
-    def filtered_gtf = sqanti_filter.out
+    filtered_gtf = sqanti_filter.out
         .map { dir -> dir / "default.filtered.gtf"}
-    def filtered_classification = sqanti_filter.out
+    filtered_classification = sqanti_filter.out
         .map { dir -> dir / "default_RulesFilter_result_classification.txt" }
-    
-    filter_by_expression_input_ch = oarfish_quant
-        .collect()
-        .toList()
-        .combine(filtered_classification)
-        .combine(filtered_gtf)
-        .combine(isoform_exp_filter_params)
-    filter_by_expression(filter_by_expression_input_ch)
-    GffCompare(annotation_gtf, filter_by_expression.out.final_transcripts_gtf)
-
-    def sqanti_corrected_fasta = sqanti_qc.out
+    sqanti_corrected_fasta = sqanti_qc.out
         .map { dir -> dir / "sqanti_qc_results_corrected.fasta" }
-    subset_corrected_fasta(filter_by_expression.out.final_transcripts_gtf, sqanti_corrected_fasta)
 
     emit:
-    final_classification = filter_by_expression.out.final_classification
-    final_transcripts_gtf = filter_by_expression.out.final_transcripts_gtf
-    final_expression = filter_by_expression.out.final_expression
     star_genomeDir = star_genomeGenerate.out
-    subset_corrected_fasta = subset_corrected_fasta.out
-    tmap = GffCompare.out.tmap
+    filtered_gtf = filtered_gtf
+    filtered_classification = filtered_classification
+    sqanti_corrected_fasta = sqanti_corrected_fasta
 }

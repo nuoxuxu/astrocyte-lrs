@@ -87,13 +87,14 @@ process generate_ribotie_yml {
 
     script:
     """
-    generate_ribotie_yml.py \
-    --gtf $gtf_path \
-    --fa $ref_genome_fasta \
-    --bam-glob "*.bam" \
-    --h5 ribotie_res.h5 \
-    --out-prefix ribotie_res \
-    --samples "Unstim:merged_astro_A,merged_astro_B" "Stim:merged_astro_C,Astro_D" \
+    generate_ribotie_yml.py \\
+    --gtf $gtf_path \\
+    --fa $ref_genome_fasta \\
+    --bam-glob "*.bam" \\
+    --h5 ribotie_res.h5 \\
+    --out-prefix ribotie_res \\
+    --samples "Unstim:merged_astro_A,merged_astro_B" "Stim:merged_astro_C,Astro_D" \\
+    --mode $mode \\
     -o RiboTIE.yml
     """
 }
@@ -137,10 +138,12 @@ workflow PREPARE_RIBOTIE {
         .combine(annotation_gtf)
         | subset_GENCODE_tx
 
-    sjdbGTFfile_tuples = orfanage_gtf
+    orfanage_gtf
         .join(final_classification)
-        .join(annotation_gtf)
+        .combine(annotation_gtf)
         | format_gtf_for_ribotie
+
+    sjdbGTFfile_tuples = format_gtf_for_ribotie.out
         .mix(
             channel.value("gencode")
                 .concat(annotation_gtf)
@@ -157,14 +160,17 @@ workflow PREPARE_RIBOTIE {
 
     sjdbGTFfile_tuples
         .join(star_riboseq.out.genome_bam.groupTuple())
-        .combine(channel.of(["merged", "separate"]))
+        .combine(channel.of("merged", "separate"))
         .combine(ref_genome_fasta)
         | generate_ribotie_yml
-    
+
+    // generate_ribotie_yml.out.view()
+    // star_riboseq.out.transcriptome_bam.groupTuple().view()
     sjdbGTFfile_tuples
         .join(star_riboseq.out.transcriptome_bam.groupTuple())
-        .join(generate_ribotie_yml.out)
+        .cross(generate_ribotie_yml.out)
         .combine(ref_genome_fasta)
+        .map { v -> tuple(v[0][0], v[0][1], v[0][2], v[1][1], v[1][2], v[2]) }
         | generate_ribotie_db
 
     generate_ribotie_db.out

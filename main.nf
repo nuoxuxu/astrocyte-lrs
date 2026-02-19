@@ -1,7 +1,8 @@
 include { PREPROCESSING } from "./subworkflows/preprocessing"
 include { ISOSEQ } from "./subworkflows/isoseq"
 include { RUN_OARFISH } from "./subworkflows/oarfish"
-include { SQANTI_AND_FILTER_BY_EXP } from "./subworkflows/sqanti"
+include { SQANTI } from "./subworkflows/sqanti"
+include { FILTER_BY_EXPRESSION } from "./subworkflows/filter_by_expression"
 include { RUN_ORFANAGE } from "./subworkflows/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/riboseq"
 include { GET_QUALITY_METRICS } from "./subworkflows/quality"
@@ -24,12 +25,13 @@ workflow {
     PREPROCESSING(params.hifi_reads_bam, kinnex_adapters, isoseq_primers, biosamples_csv)
     ISOSEQ(PREPROCESSING.out.flnc_bam, ref_genome_fasta)
     RUN_OARFISH(ISOSEQ.out.merged_sorted_collapsed_gtf, ref_genome_fasta, PREPROCESSING.out.flnc_bam)
-    SQANTI_AND_FILTER_BY_EXP(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, params.filter_configs, RUN_OARFISH.out.oarfish_quant, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name, params.ref_genome_fasta)
-    RUN_ORFANAGE(ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.out.final_transcripts_gtf, annotation_gtf)
-    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, SQANTI_AND_FILTER_BY_EXP.out.tmap)
-    GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db)
-    ISOFORMSWITCH(SQANTI_AND_FILTER_BY_EXP.out.final_expression, primer_to_sample, SQANTI_AND_FILTER_BY_EXP.out.corrected_fasta, RUN_ORFANAGE.out.orfanage_gtf, annotation_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_classification, RUN_ORFANAGE.out.orfanage_proteins, pfamdb, SQANTI_AND_FILTER_BY_EXP.out.subset_corrected_fasta, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
-    RIBOTIE_POSTANALYSIS(params.ribotie_training_outputs, RUN_ORFANAGE.out.orfanage_gtf, SQANTI_AND_FILTER_BY_EXP.out.final_expression, SQANTI_AND_FILTER_BY_EXP.out.final_classification)
+    SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name, params.ref_genome_fasta)
+    FILTER_BY_EXPRESSION(RUN_OARFISH.out.oarfish_quant, SQANTI.out.filtered_classification, SQANTI.out.filtered_gtf, SQANTI.out.sqanti_corrected_fasta, params.filter_configs, annotation_gtf)
+    // RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, annotation_gtf)
+    // PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, FILTER_BY_EXPRESSION.out.tmap)
+    // GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db)
+    // ISOFORMSWITCH(FILTER_BY_EXPRESSION.out.final_expression, primer_to_sample, FILTER_BY_EXPRESSION.out.final_fasta, RUN_ORFANAGE.out.orfanage_gtf, annotation_gtf, FILTER_BY_EXPRESSION.out.final_classification, RUN_ORFANAGE.out.orfanage_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
+    // RIBOTIE_POSTANALYSIS(params.ribotie_training_outputs, RUN_ORFANAGE.out.orfanage_gtf, FILTER_BY_EXPRESSION.out.final_expression, FILTER_BY_EXPRESSION.out.final_classification)
     // -------------------Testing PREPARE_RIBOTIE-----------------
     // orfanage_gtf = channel.of(
     //     ["low_stringency", "/scratch/nxu/astrocytes/nextflow_results/orfanage/low_stringency/orfanage.gtf"],
