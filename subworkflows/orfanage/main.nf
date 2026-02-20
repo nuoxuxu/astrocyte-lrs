@@ -67,7 +67,13 @@ process fixORFanageFormat {
     """
     agat_sp_add_start_and_stop.pl --gff $complete_orfanage_gtf --fasta $ref_genome_fasta --out "added_codons_orfanage_with_gene_id.gff3"
 
-    agat_convert_sp_gff2gtf.pl --gff "added_codons_orfanage_with_gene_id.gff3" -o "fixed_complete_orfanage.gtf" --gtf_version 3
+    agat_convert_sp_gff2gtf.pl --gff "added_codons_orfanage_with_gene_id.gff3" -o "agat_output.gtf" --gtf_version 3
+
+    restore_agat_removed_tx.py \\
+        -i $complete_orfanage_gtf \\
+        -r "agat_output.gtf" \\
+        -o "fixed_complete_orfanage.gtf" \\
+        -v
     """
 }
 
