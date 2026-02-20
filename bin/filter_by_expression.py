@@ -51,7 +51,7 @@ def main():
 
     tx_count.filter(pl.col("tname").is_in(isoforms_to_keep)).write_parquet("final_expression.parquet")
 
-    classification = pl.read_csv("nextflow_results/sqanti3/isoseq/sqanti3_filter/default_RulesFilter_result_classification.txt", separator="\t")\
+    classification = pl.read_csv("default_RulesFilter_result_classification.txt", separator="\t")\
         .filter(
             pl.col("filter_result") == "Isoform",
             pl.col("isoform").is_in(isoforms_to_keep)

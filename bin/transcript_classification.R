@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 library(argparse)
 library(dplyr)
 library(ggplot2)
