@@ -31,6 +31,25 @@ process runORFanage {
         orfanage_without_gene_id.gtf
     """
 }
+process addNoncodingTx {
+    label "short_slurm_job"
+    conda "/scratch/nxu/astrocytes/env"
+    storeDir "nextflow_results/orfanage/${param_set_name}"
+
+    input:
+    tuple val(param_set_name), path(orfanage_gtf), path(final_transcripts_gtf)
+
+    output:
+    tuple val(param_set_name), path("complete_orfanage.gtf")
+
+    script:
+    """
+    add_noncoding_tx_to_orfanage_gtf.py \\
+        -i $final_transcripts_gtf \\
+        -r $orfanage_gtf \\
+        -o complete_orfanage.gtf
+    """
+}
 
 process fixORFanageFormat {
     label "short_slurm_job"
@@ -39,16 +58,16 @@ process fixORFanageFormat {
 
     input:
     path ref_genome_fasta
-    tuple val(param_set_name), path(orfanage_gtf)
+    tuple val(param_set_name), path(complete_orfanage_gtf)
 
     output:
-    tuple val(param_set_name), path("orfanage.gtf")
+    tuple val(param_set_name), path("fixed_complete_orfanage.gtf")
     
     script:
     """
-    agat_sp_add_start_and_stop.pl --gff $orfanage_gtf --fasta $ref_genome_fasta --out "added_codons_orfanage_with_gene_id.gff3"
+    agat_sp_add_start_and_stop.pl --gff $complete_orfanage_gtf --fasta $ref_genome_fasta --out "added_codons_orfanage_with_gene_id.gff3"
 
-    agat_convert_sp_gff2gtf.pl --gff "added_codons_orfanage_with_gene_id.gff3" -o "orfanage.gtf" --gtf_version 3
+    agat_convert_sp_gff2gtf.pl --gff "added_codons_orfanage_with_gene_id.gff3" -o "fixed_complete_orfanage.gtf" --gtf_version 3
     """
 }
 
@@ -80,7 +99,10 @@ workflow RUN_ORFANAGE {
 
     main:
     runORFanage(ref_genome_fasta, final_transcripts_gtf, annotation_gtf)
-    fixORFanageFormat(ref_genome_fasta, runORFanage.out.orfanage_gtf)
+    runORFanage.out.orfanage_gtf
+        .join(final_transcripts_gtf)
+        | addNoncodingTx
+    fixORFanageFormat(ref_genome_fasta, addNoncodingTx.out)
     translateORFs(ref_genome_fasta, fixORFanageFormat.out)
 
     emit:
