@@ -95,7 +95,14 @@ def main():
 
     # Add samples
     if args.mode == "merged":
-        config["samples"] = list(ribo_paths.keys())
+        if args.samples:
+            groups = parse_samples(args.samples, list(ribo_paths.keys()))
+            flat = []
+            for keys in groups.values():
+                flat.extend(keys)
+            config["samples"] = {"merged": flat}
+        else:
+            config["samples"] = {"merged": list(ribo_paths.keys())}
     else:
         if not args.samples:
             parser.error("--samples is required when --mode=separate")
