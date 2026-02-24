@@ -1,8 +1,29 @@
+process make_combined_gtf_for_ribotie {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/ribotie_prep/${param_set_name}"
+
+    input:
+    tuple val(param_set_name), path(final_transcripts_gtf), path(final_classification), path(annotation_gtf)
+
+    output:
+    tuple val(param_set_name), path("combined_for_ribotie.gtf")
+
+    script:
+    """
+    make_combined_gtf_for_ribotie.py \\
+        --final_transcripts_gtf ${final_transcripts_gtf} \\
+        --final_classification ${final_classification} \\
+        --annotation_gtf ${annotation_gtf} \\
+        --output_gtf combined_for_ribotie.gtf
+    """
+}
+
 process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orfanage/${param_set_name}"
-    
+    storeDir "nextflow_results/ribotie_prep/${param_set_name}"
+
     input:
     tuple val(param_set_name), path(orfanage_gtf), path(final_classification), path(annotation_gtf)
 
@@ -19,26 +40,6 @@ process format_gtf_for_ribotie {
     """
 }
 
-// Subset GENCODE annotation to only include transcripts that are present in the custom GTF
-process subset_GENCODE_tx {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/gencode_low"
-
-    input:
-    tuple val(param_set_name), path(final_classification), path(tmap), path(annotation_gtf)
-
-    output:
-    tuple val("gencode_low"), path("gencode_supported_transcripts.gtf")
-    
-    script:
-    """
-    subset_gencode_by_tmap.py \\
-        --tmap $tmap \\
-        --gtf $annotation_gtf \\
-        --output gencode_supported_transcripts.gtf
-    """
-}
 
 process star_riboseq {
     module "StdEnv/2023:star/2.7.11b"
@@ -78,7 +79,7 @@ process star_riboseq {
 process generate_ribotie_yml {
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/${param_set_name}/${mode}"
+    storeDir "nextflow_results/prepare_ribotie/${param_set_name}/${mode}"
 
     input:
     tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), val(mode), path(ref_genome_fasta)
@@ -102,7 +103,7 @@ process generate_ribotie_yml {
 process generate_ribotie_db {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/${param_set_name}/${mode}"
+    storeDir "nextflow_results/prepare_ribotie/${param_set_name}/${mode}"
 
     input:
     tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), val(mode), path(ribotie_yml), path(ref_genome_fasta)
@@ -119,26 +120,22 @@ process generate_ribotie_db {
 
 workflow PREPARE_RIBOTIE {
     take:
-    orfanage_gtf
+    final_transcripts_gtf
     final_classification
     annotation_gtf
     star_genomeDir
     riboseq_unmapped_to_contaminants
     ref_genome_fasta
-    tmap
 
     main:
     channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
 
-    final_classification
-        .filter { label, _file -> 
-            label == "low_stringency" 
-        }
-        .join(tmap)
+    final_transcripts_gtf
+        .join(final_classification)
         .combine(annotation_gtf)
-        | subset_GENCODE_tx
+        | make_combined_gtf_for_ribotie
 
-    orfanage_gtf
+    make_combined_gtf_for_ribotie.out
         .join(final_classification)
         .combine(annotation_gtf)
         | format_gtf_for_ribotie
@@ -149,9 +146,7 @@ workflow PREPARE_RIBOTIE {
                 .concat(annotation_gtf)
                 .collect()
         )
-        .mix(
-            subset_GENCODE_tx.out
-        )
+
 
     star_genomeDir
         .combine(riboseq_unmapped_to_contaminants)

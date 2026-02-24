@@ -7,6 +7,7 @@ library(patchwork)
 library(dplyr)
 library(ggnewscale)
 library(IsoformSwitchAnalyzeR)
+library(rsconnect)
 
 my_theme <- theme_bw() + theme(
   panel.grid.minor = element_blank(),
@@ -46,9 +47,8 @@ lr_log2_cpm <- read.csv("data/lr_log2_cpm.csv") %>%
     condition = factor(condition, levels = c("mean_Unstim", "mean_Stim"))
   )
 
-switchlist_low <- readRDS("data/switchlist_low.rds")
 switchlist_high <- readRDS("data/switchlist_high.rds")
-switch_genes <- sort(unique(na.omit(switchlist_low$isoformFeatures$gene_name)))
+switch_genes <- sort(unique(na.omit(switchlist_high$isoformFeatures$gene_name)))
 
 plot_ggtranscript <- function(gene_of_interest) {
   exons <- gtf %>%
@@ -143,12 +143,6 @@ ui <- navbarPage(
           "Select gene of interest:",
           choices = switch_genes,
           selected = switch_genes[1]
-        ),
-        radioButtons(
-          "stringency",
-          "Stringency:",
-          choices = c("Low" = "low", "High" = "high"),
-          selected = "low"
         )
       ),
       mainPanel(
@@ -169,19 +163,17 @@ server <- function(input, output, session) {
     })
   )
 
-  selected_switchlist <- reactive({
-    if (input$stringency == "high") switchlist_high else switchlist_low
-  })
-
   output$switch_plot <- renderPlot({
     validate(need(input$switch_gene, 'Choose a gene!'))
     switchPlot(
-      selected_switchlist(),
+      switchlist_high,
       gene = input$switch_gene,
       condition1 = "Unstim",
-      condition2 = "Stim"
+      condition2 = "Stim",
+      localTheme = theme_bw(base_size = 14)
     )
   })
 }
 
 shinyApp(ui, server)
+# deployApp(appName = "astrocyte_vis_app")

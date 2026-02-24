@@ -47,17 +47,10 @@ PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI_AND_FILTER_BY_EXP → RUN_OR
 
 ### Key Design Patterns
 
-- **Dual-filter strategy**: `filter_configs` runs two parallel parameter sets (`low_stringency` and `high_stringency`) through the pipeline. Outputs are tagged with `param_set_name` as a tuple element.
-- **JSON manifests**: Cross-workflow communication between `main.nf` and `RiboTIE.nf` via JSON files in `nextflow_results/manifests/`.
+- **Dual-filter strategy**: `filter_configs` runs three parallel parameter sets (`low_stringency`, `mid_stringency` and `high_stringency`) through the pipeline. Outputs are tagged with `param_set_name` as a tuple element.
+- **JSON manifests**: Cross-workflow communication between `main.nf`, `post_RiboTIE,nf` and `RiboTIE.nf` via JSON files in `nextflow_results/manifests/`.
 - **storeDir**: Processes use `storeDir` for persistent output caching (not Nextflow's default `publishDir`).
 - **Channel tuples**: Data flows as `[param_set_name, file]` tuples for tracking filter config provenance.
-
-### Process Definitions
-
-Nextflow processes are defined in:
-- `modules/local/sqanti3.nf` - SQANTI3 processes
-- `modules/local/riboseq.nf` - Ribo-seq processes
-- Inline within subworkflow files
 
 Process labels control SLURM resource allocation: `short_slurm_job` (1h), `mid_slurm_job` (4h), `long_slurm_job` (24h).
 
@@ -72,4 +65,4 @@ Managed via Conda (`environment.yml`) and Apptainer/Singularity containers. Key 
 
 ## Output Structure
 
-Results go to `params.outdir` (default: `/scratch/nxu/astrocytes/nextflow_results`), organized by stage then by stringency level (e.g., `sqanti3/isoseq/sqanti3_filter/low_stringency/`).
+Results go to `params.outdir` (default: `nextflow_results`), organized by stage then by stringency level (e.g., `sqanti3/isoseq/sqanti3_filter/low_stringency/`).

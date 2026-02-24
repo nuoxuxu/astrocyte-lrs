@@ -17,18 +17,24 @@ def add_gene_name(df, classification, annotation_gtf):
         .filter(pl.col("feature")=="gene")\
         .select("gene_id", "gene_name")\
         .unique()
-    classification = pl.read_parquet(classification)\
+    cls_gene_name = pl.read_parquet(classification)\
         .join(
             id_to_gene_name,
             left_on="associated_gene",
             right_on="gene_id",
             how="left"
-        )
+        )\
+        .select([pl.col("isoform"), pl.col("gene_name").alias("cls_gene_name")])
+    # Left join so GENCODE transcripts (ENST... IDs not in isoform column) are kept.
+    # gene_name already present in df for GENCODE entries; cls_gene_name fills in novel ones.
     return df.join(
-        classification.select(["isoform", "gene_name"]),
-        left_on="transcript_id", 
-        right_on="isoform"
-    )
+        cls_gene_name,
+        left_on="transcript_id",
+        right_on="isoform",
+        how="left"
+    ).with_columns(
+        gene_name=pl.coalesce(["gene_name", "cls_gene_name"])
+    ).drop("cls_gene_name")
 
 def write_gtf(df: pl.DataFrame, output_path: str):
     std_cols = ["seqname", "source", "feature", "start", "end", "score", "strand", "frame"]
@@ -73,7 +79,7 @@ def write_gtf(df: pl.DataFrame, output_path: str):
     )
     print(f"Written to {output_path}")
 
-attribute_list = ["gene_id", "transcript_id"]
+attribute_list = ["gene_id", "transcript_id", "gene_name"]
 orfanage_gtf = read_gtf(params.input_gtf, attributes=attribute_list)
 
 orfanage_exons = orfanage_gtf.filter(pl.col("feature") == "exon")
