@@ -4,7 +4,7 @@ include { RUN_OARFISH } from "./subworkflows/oarfish"
 include { SQANTI } from "./subworkflows/sqanti"
 include { FILTER_BY_EXPRESSION } from "./subworkflows/filter_by_expression"
 include { RUN_ORFANAGE } from "./subworkflows/orfanage"
-include { PREPARE_RIBOTIE } from "./subworkflows/riboseq"
+include { PREPARE_RIBOTIE } from "./subworkflows/prepare_ribotie"
 
 workflow {
     channel.value(file(params.kinnex_adapters)).set { kinnex_adapters }

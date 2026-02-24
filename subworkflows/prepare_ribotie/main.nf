@@ -164,12 +164,12 @@ workflow PREPARE_RIBOTIE {
         .combine(ref_genome_fasta)
         | generate_ribotie_yml
 
-    sjdbGTFfile_tuples
-        .join(star_riboseq.out.transcriptome_bam.groupTuple())
-        .cross(generate_ribotie_yml.out)
-        .combine(ref_genome_fasta)
-        .map { v -> tuple(v[0][0], v[0][1], v[0][2], v[1][1], v[1][2], v[2]) }
-        | generate_ribotie_db
+    // sjdbGTFfile_tuples
+    //     .join(star_riboseq.out.transcriptome_bam.groupTuple())
+    //     .cross(generate_ribotie_yml.out)
+    //     .combine(ref_genome_fasta)
+    //     .map { v -> tuple(v[0][0], v[0][1], v[0][2], v[1][1], v[1][2], v[2]) }
+    //     | generate_ribotie_db
 
 
     emit:
