@@ -5,9 +5,6 @@ include { SQANTI } from "./subworkflows/sqanti"
 include { FILTER_BY_EXPRESSION } from "./subworkflows/filter_by_expression"
 include { RUN_ORFANAGE } from "./subworkflows/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/riboseq"
-include { GET_QUALITY_METRICS } from "./subworkflows/quality"
-include { ISOFORMSWITCH } from "./subworkflows/IsoformSwitchAnalyzeR/main.nf"
-include { RIBOTIE_POSTANALYSIS } from "./subworkflows/ribotie_postanalysis/main.nf"
 
 workflow {
     channel.value(file(params.kinnex_adapters)).set { kinnex_adapters }
@@ -18,69 +15,82 @@ workflow {
     channel.value(file(params.refTSS)).set { refTSS }
     channel.value(file(params.polyA_motif_list)).set { polyA_motif_list }
     channel.value(params.star_genomeDir_name).set { star_genomeDir_name }
-    channel.value(file(params.pfamdb)).set { pfamdb }
-    channel.value(file(params.PhyloCSFpp_db)).set { PhyloCSFpp_db }
-    channel.value(file(params.primer_to_sample)).set { primer_to_sample }
 
     PREPROCESSING(params.hifi_reads_bam, kinnex_adapters, isoseq_primers, biosamples_csv)
     ISOSEQ(PREPROCESSING.out.flnc_bam, ref_genome_fasta)
     RUN_OARFISH(ISOSEQ.out.merged_sorted_collapsed_gtf, ref_genome_fasta, PREPROCESSING.out.flnc_bam)
-    SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name, params.ref_genome_fasta)
+    SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name)
     FILTER_BY_EXPRESSION(RUN_OARFISH.out.oarfish_quant, SQANTI.out.filtered_classification, SQANTI.out.filtered_gtf, SQANTI.out.sqanti_corrected_fasta, params.filter_configs, annotation_gtf)
-    // RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, annotation_gtf)
-    // PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, FILTER_BY_EXPRESSION.out.tmap)
-    // GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db)
-    // ISOFORMSWITCH(FILTER_BY_EXPRESSION.out.final_expression, primer_to_sample, FILTER_BY_EXPRESSION.out.final_fasta, RUN_ORFANAGE.out.orfanage_gtf, annotation_gtf, FILTER_BY_EXPRESSION.out.final_classification, RUN_ORFANAGE.out.orfanage_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
-    // RIBOTIE_POSTANALYSIS(params.ribotie_training_outputs, RUN_ORFANAGE.out.orfanage_gtf, FILTER_BY_EXPRESSION.out.final_expression, FILTER_BY_EXPRESSION.out.final_classification)
-    // -------------------Testing PREPARE_RIBOTIE-----------------
-    // orfanage_gtf = channel.of(
-    //     ["low_stringency", "/scratch/nxu/astrocytes/nextflow_results/orfanage/low_stringency/orfanage.gtf"],
-    //     ["high_stringency", "/scratch/nxu/astrocytes/nextflow_results/orfanage/high_stringency/orfanage.gtf"]
-    // )
-    // final_classification = channel.of(
-    //     ["low_stringency", "/scratch/nxu/astrocytes/nextflow_results/sqanti3/isoseq/sqanti3_filter/filter_by_expression/low_stringency/final_classification.parquet"],
-    //     ["high_stringency", "/scratch/nxu/astrocytes/nextflow_results/sqanti3/isoseq/sqanti3_filter/filter_by_expression/high_stringency/final_classification.parquet"]
-    // )
-    // star_genomeDir = channel.fromPath("/scratch/nxu/astrocytes/nextflow_results/align/star/STAR_index_v47")
-    // PREPARE_RIBOTIE(orfanage_gtf, final_classification, params.annotation_gtf, star_genomeDir, params.riboseq_unmapped_to_contaminants)
-    // ------------------------------------------------------------
-    
+    RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, annotation_gtf)
+    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, FILTER_BY_EXPRESSION.out.tmap)
 
-    // star_riboseq_custom.out.bedGraph_UniqueMultiple
-    //     .branch {
-    //         unstim: it.name =~ /^merged_astro_[AB]_/
-    //         stim: it.name =~ /^(merged_astro_C_|Astro_D_)/
-    //     }
-    //     .set { custom_bedgraphs }
-    
-    // star_riboseq_gencode.out.bedGraph_UniqueMultiple
-    //     .branch {
-    //         unstim: it.name =~ /^merged_astro_[AB]_/
-    //         stim: it.name =~ /^(merged_astro_C_|Astro_D_)/
-    //     }
-    //     .set { gencode_bedgraphs }
-    
+    PREPARE_RIBOTIE.out.ribotie_db
+        .toList()
+        .map { results ->
+            def outputs = results.collect { param_name, gtf_h5, ribotie_h5, mode ->
+                [
+                    param_set_name: param_name,
+                    gtf_h5: "nextflow_results/ribotie/${param_name}/${mode}/${gtf_h5.name}",
+                    ribotie_h5: "nextflow_results/ribotie/${param_name}/${mode}/${ribotie_h5.name}",
+                    base_dir: "nextflow_results/ribotie/${param_name}/${mode}",
+                    ribotie_yml: "nextflow_results/ribotie/${param_name}/${mode}/RiboTIE.yml"
+                ]
+            }
+            groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
+        }
+        .collectFile(name: 'ribotie_training_inputs.json', storeDir: 'nextflow_results/manifests')
 
-    // merge_bg_and_convert_to_bw_custom_unstim(
-    //     custom_bedgraphs.unstim.collect(),
-    //     params.chrom_sizes,
-    //     "custom_unstim"
-    // )
-    
-    // Merge stimulated samples (C and D)
-    // merge_bg_and_convert_to_bw_custom_stim(
-    //     custom_bedgraphs.stim.collect(),
-    //     params.chrom_sizes,
-    //     "custom_stim"
-    // )
-    
-    // format_gtf_for_ribotie(fixORFanageFormat.out, filter_by_expression.out.final_classification, params.annotation_gtf)
-    // make_db_files(sqanti_filter.out.filtered_gtf)
+    PREPARE_RIBOTIE.out.ribotie_db
+        .toList()
+        .map { results ->
+            def outputs = results.collect { param_name, _gtf_h5, _ribotie_h5, mode ->
+                def base_dir = "nextflow_results/ribotie/${param_name}/${mode}"
+                def entry = [
+                    param_set_name: param_name,
+                ]
+                if (mode == "merged") {
+                    entry += [
+                        ribotie_merged_gtf: "${base_dir}/ribotie_res_merged.gtf",
+                        ribotie_merged_csv: "${base_dir}/ribotie_res_merged.csv",
+                        ribotie_merged_novel_gtf: "${base_dir}/ribotie_res_merged.novel.gtf",
+                        ribotie_merged_novel_csv: "${base_dir}/ribotie_res_merged.novel.csv",
+                    ]
+                } else {
+                    entry += [
+                        ribotie_unstim_gtf: "${base_dir}/ribotie_res_Unstim.gtf",
+                        ribotie_unstim_csv: "${base_dir}/ribotie_res_Unstim.csv",
+                        ribotie_stim_gtf: "${base_dir}/ribotie_res_Stim.gtf",
+                        ribotie_stim_csv: "${base_dir}/ribotie_res_Stim.csv",
+                        ribotie_unstim_novel_gtf: "${base_dir}/ribotie_res_Unstim.novel.gtf",
+                        ribotie_unstim_novel_csv: "${base_dir}/ribotie_res_Unstim.novel.csv",
+                        ribotie_stim_novel_gtf: "${base_dir}/ribotie_res_Stim.novel.gtf",
+                        ribotie_stim_novel_csv: "${base_dir}/ribotie_res_Stim.novel.csv",
+                    ]
+                }
+                entry
+            }
+            groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
+        }
+        .collectFile(name: 'ribotie_training_outputs.json', storeDir: 'nextflow_results/manifests')
 
-    // sqanti_qc_bambu(bambu.out.supported_tx_gtf, params.annotation_gtf, params.ref_genome_fasta, params.refTSS, params.polyA_motif_list, star.out.star_aligned_bam.collect(), star.out.star_sj_tab.collect())
-    // def bambu_corrected_gtf = sqanti_qc_bambu.out
-    //     .map { dir -> dir / "sqanti_qc_results_corrected.gtf" }
-    // def bambu_classification = sqanti_qc_bambu.out
-    //     .map { dir -> dir / "sqanti_qc_results_classification.gtf" }
-    // sqanti_filter_bambu(bambu_corrected_gtf, bambu_classification)
+    FILTER_BY_EXPRESSION.out.final_expression
+        .join(FILTER_BY_EXPRESSION.out.final_fasta)
+        .join(FILTER_BY_EXPRESSION.out.final_classification)
+        .join(RUN_ORFANAGE.out.orfanage_gtf)
+        .join(RUN_ORFANAGE.out.orfanage_proteins)
+        .toList()
+        .map { results ->
+            def outputs = results.collect { param_name, _final_expression, _final_fasta, _final_classification, _orfanage_gtf, _orfanage_proteins ->
+                [
+                    param_set_name: param_name,
+                    final_expression: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_expression.parquet",
+                    final_fasta: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_transcripts.fasta",
+                    final_classification: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_classification.parquet",
+                    orfanage_gtf: "nextflow_results/orfanage/${param_name}/orfanage.gtf",
+                    orfanage_proteins: "nextflow_results/orfanage/${param_name}/orfanage_proteins.fasta",
+                ]
+            }
+            groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
+        }
+        .collectFile(name: 'main_pipeline_outputs.json', storeDir: 'nextflow_results/manifests')
 }

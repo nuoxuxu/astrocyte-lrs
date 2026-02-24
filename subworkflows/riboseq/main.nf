@@ -159,13 +159,11 @@ workflow PREPARE_RIBOTIE {
         | star_riboseq
 
     sjdbGTFfile_tuples
-        .join(star_riboseq.out.genome_bam.groupTuple())
+        .join(star_riboseq.out.transcriptome_bam.groupTuple())
         .combine(channel.of("merged", "separate"))
         .combine(ref_genome_fasta)
         | generate_ribotie_yml
 
-    // generate_ribotie_yml.out.view()
-    // star_riboseq.out.transcriptome_bam.groupTuple().view()
     sjdbGTFfile_tuples
         .join(star_riboseq.out.transcriptome_bam.groupTuple())
         .cross(generate_ribotie_yml.out)
@@ -173,19 +171,7 @@ workflow PREPARE_RIBOTIE {
         .map { v -> tuple(v[0][0], v[0][1], v[0][2], v[1][1], v[1][2], v[2]) }
         | generate_ribotie_db
 
-    generate_ribotie_db.out
-        .toList()
-        .map { results ->
-            def outputs = results.collect { param_name, gtf_h5, ribotie_h5, mode ->
-                [
-                    param_set_name: param_name,
-                    gtf_h5: "nextflow_results/ribotie/${param_name}/${mode}/${gtf_h5.name}",
-                    ribotie_h5: "nextflow_results/ribotie/${param_name}/${mode}/${ribotie_h5.name}",
-                    base_dir: "nextflow_results/ribotie/${param_name}/${mode}",
-                    ribotie_yml: "nextflow_results/ribotie/${param_name}/${mode}/RiboTIE.yml"
-                ]
-            }
-            groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
-        }
-        .collectFile(name: 'ribotie_training_inputs.json', storeDir: 'nextflow_results/manifests')
+
+    emit:
+    ribotie_db = generate_ribotie_db.out
 }
