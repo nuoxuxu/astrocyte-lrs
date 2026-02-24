@@ -61,20 +61,36 @@ process fixORFanageFormat {
     tuple val(param_set_name), path(complete_orfanage_gtf)
 
     output:
-    tuple val(param_set_name), path("fixed_complete_orfanage.gtf")
+    tuple val(param_set_name), path("agat_output.gtf")
     
     script:
     """
     agat_sp_add_start_and_stop.pl --gff $complete_orfanage_gtf --fasta $ref_genome_fasta --out "added_codons_orfanage_with_gene_id.gff3"
 
     agat_convert_sp_gff2gtf.pl --gff "added_codons_orfanage_with_gene_id.gff3" -o "agat_output.gtf" --gtf_version 3
+    """
+}
 
+process restoreAgatRemovedTx {
+    label "short_slurm_job"
+    conda "/scratch/nxu/astrocytes/env"
+    storeDir "nextflow_results/orfanage/${param_set_name}"
+
+    input:
+    tuple val(param_set_name), path(complete_orfanage_gtf), path(agat_output_gtf)
+
+    output:
+    tuple val(param_set_name), path("orfanage.gtf")
+
+    script:
+    """
     restore_agat_removed_tx.py \\
         -i $complete_orfanage_gtf \\
-        -r "agat_output.gtf" \\
-        -o "fixed_complete_orfanage.gtf" \\
+        -r $agat_output_gtf \\
+        -o "orfanage.gtf" \\
         -v
     """
+
 }
 
 process translateORFs {
@@ -105,13 +121,20 @@ workflow RUN_ORFANAGE {
 
     main:
     runORFanage(ref_genome_fasta, final_transcripts_gtf, annotation_gtf)
+    
     runORFanage.out.orfanage_gtf
         .join(final_transcripts_gtf)
         | addNoncodingTx
+    
     fixORFanageFormat(ref_genome_fasta, addNoncodingTx.out)
-    translateORFs(ref_genome_fasta, fixORFanageFormat.out)
+    
+    addNoncodingTx.out
+        .join(fixORFanageFormat.out)
+        | restoreAgatRemovedTx
+    
+    translateORFs(ref_genome_fasta, restoreAgatRemovedTx.out)
 
     emit:
-    orfanage_gtf = fixORFanageFormat.out
+    orfanage_gtf = restoreAgatRemovedTx.out
     orfanage_proteins = translateORFs.out
 }
