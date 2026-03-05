@@ -4,7 +4,7 @@ process IsoseqsSwitchList {
     storeDir "nextflow_results/IsoformSwitchAnalyzeR/${param_set_name}"
 
     input:
-    tuple val(param_set_name), path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(corrected_fasta), path(annotation_gtf)
+    tuple val(param_set_name), path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf)
 
     output:
     path("IsoformSwitchAnalyzeR.rds")
@@ -14,7 +14,7 @@ process IsoseqsSwitchList {
     IsoformSwitchAnalyzeR.R \\
         --final_expression $final_expression \\
         --primer_to_sample $primer_to_sample \\
-        --corrected_fasta $corrected_fasta \\
+        --final_fasta $final_fasta \\
         --orfanage_gtf $orfanage_gtf \\
         --annotation_gtf $annotation_gtf \\
         --final_classification $final_classification
@@ -31,7 +31,7 @@ process run_cpat {
     path(Human_coding_transcripts_CDS)
     path(Human_noncoding_transcripts_RNA)
     path(Human_logitModel)
-    tuple val(param_set_name), path(nt_fasta)
+    tuple val(param_set_name), path(final_fasta)
 
     output:
     path("CPAT.ORF_prob.tsv"), emit: ORF_prob_tsv
@@ -46,7 +46,7 @@ process run_cpat {
     cpat \\
         -x Human_Hexamer.tsv \\
         -d $Human_logitModel \\
-        -g $nt_fasta \\
+        -g $final_fasta \\
         --min-orf=50 \\
         --top-orf=50 \\
         -o CPAT \\
@@ -98,13 +98,12 @@ workflow ISOFORMSWITCH {
     take:
     final_expression
     primer_to_sample
-    corrected_fasta
+    final_fasta
     orfanage_gtf
     annotation_gtf
     final_classification
     translation_fasta
     pfamdb
-    nt_fasta
     Human_coding_transcripts_CDS
     Human_noncoding_transcripts_RNA
     Human_logitModel    
@@ -115,7 +114,7 @@ workflow ISOFORMSWITCH {
         .join(orfanage_gtf)
         .join(final_classification)
         .combine(primer_to_sample)
-        .join(corrected_fasta)
+        .join(final_fasta)
         .combine(annotation_gtf)
     | IsoseqsSwitchList
 
