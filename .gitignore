@@ -1,7 +1,6 @@
 work/
 nextflow_results/
 proc/
-notebooks/
 .nextflow/
 .vscode/
 astrocyte_vis_app/**
