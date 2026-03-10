@@ -1,7 +1,7 @@
 process make_combined_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie_prep/${param_set_name}"
+    storeDir "nextflow_results/prepare_ribotie/${param_set_name}"
 
     input:
     tuple val(param_set_name), path(final_transcripts_gtf), path(final_classification), path(annotation_gtf)
@@ -19,27 +19,24 @@ process make_combined_gtf_for_ribotie {
     """
 }
 
-process format_gtf_for_ribotie {
+
+process sort_gtf {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie_prep/${param_set_name}"
+    storeDir "nextflow_results/prepare_ribotie/${param_set_name}"
 
     input:
-    tuple val(param_set_name), path(orfanage_gtf), path(final_classification), path(annotation_gtf)
+    tuple val(param_set_name), path(input_gtf)
 
     output:
-    tuple val(param_set_name), path("orfanage_numbered_exons.gtf")
+    tuple val(param_set_name), path("${input_gtf.baseName}.sorted.gtf")
 
     script:
     """
-    format_gtf_for_ribotie.py \\
-    --input_gtf ${orfanage_gtf} \\
-    --final_classification ${final_classification} \\
-    --annotation_gtf ${annotation_gtf} \\
-    --output_gtf orfanage_numbered_exons.gtf
+    grep "^#" ${input_gtf} > ${input_gtf.baseName}.sorted.gtf || true
+    grep -v "^#" ${input_gtf} | sort -k1,1 -k4,4n -k5,5n >> ${input_gtf.baseName}.sorted.gtf
     """
 }
-
 
 process star_riboseq {
     module "StdEnv/2023:star/2.7.11b"
@@ -73,6 +70,23 @@ process star_riboseq {
     --alignEndsType EndToEnd \\
     --outWigType bedGraph \\
     --outWigStrand Unstranded
+    """
+}
+
+process remove_unplaced_chromosomes_from_bg {
+    module "StdEnv/2023:star/2.7.11b"
+    label "short_slurm_job"
+    storeDir "nextflow_results/align/star/riboseq/${param_set_name}"
+
+    input:
+    tuple val(param_set_name), path(bedGraph_Unique)
+
+    output:
+    tuple val(param_set_name), path("filtered_${bedGraph_Unique}")
+
+    script:
+    """
+    awk '\$1 ~ /^chr[0-9XYM]+\$/ {print \$0}' $bedGraph_Unique > "filtered_${bedGraph_Unique}"
     """
 }
 
@@ -118,6 +132,28 @@ process generate_ribotie_db {
     """
 }
 
+process merge_bg_and_convert_to_bw {
+    module "StdEnv/2023:bedtools/2.31.0:kent_tools/486"
+    label "short_slurm_job"
+    storeDir "nextflow_results/align/star/riboseq/${param_set_name}"
+    
+    input:
+    tuple val(param_set_name), path(bedgraph_files), path(chrom_sizes), val(prefix)
+
+    output:
+    path "${prefix}_merged_riboseq.bw"
+    
+    script:
+    """
+    # Merge BedGraphs
+    bedtools unionbedg -i ${bedgraph_files.join(' ')} -filler 0 | awk '{sum=0; for(i=4; i<=NF; i++) sum+=\$i; print \$1, \$2, \$3, sum}' OFS='\\t' > merged.bedgraph
+    
+    # Convert merged BedGraph to bigWig
+    sort -k1,1 -k2,2n merged.bedgraph > merged_sorted.bedgraph
+    bedGraphToBigWig merged_sorted.bedgraph ${chrom_sizes} ${prefix}_merged_riboseq.bw
+    """
+}
+
 workflow PREPARE_RIBOTIE {
     take:
     final_transcripts_gtf
@@ -128,30 +164,48 @@ workflow PREPARE_RIBOTIE {
     ref_genome_fasta
 
     main:
-    channel.fromPath(riboseq_unmapped_to_contaminants).set { riboseq_unmapped_to_contaminants }
 
+    // Combine Isoseq novel trqanscripts (no CDS)
+    // with GENCODE transcripts that correspond to known Isoseq transcripts
+    // as training input for RiboTIE
+    
     final_transcripts_gtf
         .join(final_classification)
         .combine(annotation_gtf)
         | make_combined_gtf_for_ribotie
 
     make_combined_gtf_for_ribotie.out
-        .join(final_classification)
-        .combine(annotation_gtf)
-        | format_gtf_for_ribotie
+        | sort_gtf
 
-    sjdbGTFfile_tuples = format_gtf_for_ribotie.out
+    sjdbGTFfile_tuples = sort_gtf.out
         .mix(
             channel.value("gencode")
                 .concat(annotation_gtf)
                 .collect()
         )
 
-
     star_genomeDir
-        .combine(riboseq_unmapped_to_contaminants)
+        .combine(channel.fromPath(riboseq_unmapped_to_contaminants))
         .combine(sjdbGTFfile_tuples)        
         | star_riboseq
+
+    filtered_bg = star_riboseq.out
+        .bedGraph_Unique
+        | remove_unplaced_chromosomes_from_bg
+
+    unstim_filtered_bg = filtered_bg
+        .filter{ prefix, bedGraph_Unique -> (prefix == "mid_stringency") && (bedGraph_Unique.toString().contains("merged_astro_A") || bedGraph_Unique.toString().contains("merged_astro_B")) }
+        .groupTuple()
+        .combine(channel.of(file(params.chrom_sizes)))
+        .combine(channel.of("unstim"))
+
+    filtered_bg
+        .filter{ prefix, bedGraph_Unique -> (prefix == "mid_stringency") && (bedGraph_Unique.toString().contains("merged_astro_A") || bedGraph_Unique.toString().contains("merged_astro_B")) }
+        .groupTuple()
+        .combine(channel.of(file(params.chrom_sizes)))
+        .combine(channel.of("stim"))
+        .mix(unstim_filtered_bg)
+        | merge_bg_and_convert_to_bw
 
     sjdbGTFfile_tuples
         .join(star_riboseq.out.transcriptome_bam.groupTuple())
@@ -159,13 +213,15 @@ workflow PREPARE_RIBOTIE {
         .combine(ref_genome_fasta)
         | generate_ribotie_yml
 
-    // sjdbGTFfile_tuples
-    //     .join(star_riboseq.out.transcriptome_bam.groupTuple())
-    //     .cross(generate_ribotie_yml.out)
-    //     .combine(ref_genome_fasta)
-    //     .map { v -> tuple(v[0][0], v[0][1], v[0][2], v[1][1], v[1][2], v[2]) }
-    //     | generate_ribotie_db
-
+    sjdbGTFfile_tuples
+        .join(star_riboseq.out.transcriptome_bam.groupTuple())
+        .cross(generate_ribotie_yml.out)
+        .combine(ref_genome_fasta)
+        .map { v -> tuple(v[0][0], v[0][1], v[0][2], v[1][1], v[1][2], v[2]) }
+        .filter { param_set_name, _gtf_path, _transcriptome_bam, mode, _ribotie_yml, _ref_genome_fasta ->
+            param_set_name == "mid_stringency" && mode == "separate"
+        }
+        | generate_ribotie_db
 
     emit:
     ribotie_db = generate_ribotie_db.out
