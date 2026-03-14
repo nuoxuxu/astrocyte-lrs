@@ -73,8 +73,8 @@ def trim_stop_codon(gtf: pl.DataFrame) -> pl.DataFrame:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input_gtf", help="RiboTISH GTF (stop codon included in CDS)")
-    parser.add_argument("output_gtf", help="Output GTF (stop codon trimmed from CDS)")
+    parser.add_argument("--input_gtf", help="RiboTISH GTF (stop codon included in CDS)")
+    parser.add_argument("--output_gtf", help="Output GTF (stop codon trimmed from CDS)")
     args = parser.parse_args()
 
     gtf = read_gtf(args.input_gtf, attributes=["gene_id", "transcript_id"])
