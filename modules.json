@@ -1,0 +1,22 @@
+{
+    "name": "",
+    "homePage": "",
+    "repos": {
+        "https://github.com/nf-core/modules.git": {
+            "modules": {
+                "nf-core": {
+                    "salmon/quant": {
+                        "branch": "master",
+                        "git_sha": "9ebc300e05af07c770b86ff089581a2d41346c8b",
+                        "installed_by": [
+                            "modules"
+                        ]
+                    }
+                }
+            },
+            "subworkflows": {
+                "nf-core": {}
+            }
+        }
+    }
+}
