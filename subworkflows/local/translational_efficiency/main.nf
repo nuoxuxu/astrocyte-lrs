@@ -1,0 +1,1 @@
+include { SALMON_QUANT } from '../../modules/nf-core/salmon/quant/main'
