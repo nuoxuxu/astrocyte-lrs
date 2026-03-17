@@ -1,7 +1,7 @@
 process ribotish_quality {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotish/${param_set_name}"
+    storeDir "nextflow_results/ribotish/quality/${param_set_name}"
 
     input:
     tuple val(param_set_name), path(genome_bam), path(genome_bam_index), path(orfanage_gtf)
@@ -20,8 +20,8 @@ process ribotish_quality {
 
 process ribotish_predict {
     module "python:gcc:arrow/19.0.1:rust"
-    label "short_slurm_job"
-    storeDir "nextflow_results/ribotish/${param_set_name}"
+    label "mid_slurm_job"
+    storeDir "nextflow_results/ribotish/predict/${param_set_name}"
     input:
     tuple val(param_set_name), path(genome_bam), path(genome_bam_index), path(para_py), path(final_transcripts_gtf), path(ref_genome_fasta)
     
@@ -41,7 +41,7 @@ process ribotish_predict {
 process ORFannotate {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotish/${param_set_name}"
+    storeDir "nextflow_results/ribotish/ORFannotate/${param_set_name}"
 
     input:
     tuple val(param_set_name), path(pred_txt_all), path(final_transcripts_gtf), path(ref_genome_fasta)
@@ -64,7 +64,7 @@ process ORFannotate {
 process trim_stop_codons {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotish/${param_set_name}"
+    storeDir "nextflow_results/ribotish/ORFannotate/${param_set_name}"
 
     input:
     tuple val(param_set_name), path(ORFannotate_annotated_gtf)
@@ -75,7 +75,7 @@ process trim_stop_codons {
     script:
     """
     source /scratch/nxu/astrocytes/pytorch/bin/activate
-    trim_ribotish_stop_codon.py --input_gtf $ORFannotate_annotated_gtf --output_gtf ORFannotate_annotated.trimmed.gtf
+    trim_ribotish_stop_codon.py --input_gtf $ORFannotate_annotated_gtf --output_gtf ribotish.gtf
     """
 }
 
@@ -118,15 +118,17 @@ workflow RUN_RIBOTISH {
         .combine(final_transcripts_gtf, by: 0)
         .combine(ref_genome_fasta)
         | ribotish_predict
+
     ribotish_predict.out
         .pred_txt
         .join(final_transcripts_gtf)
         .combine(ref_genome_fasta)
         | ORFannotate
+
     trim_stop_codons(ORFannotate.out.ORFannotate_annotated_gtf)
+
     trim_stop_codons.out
         | save_to_parquet
-
 
     emit:
     trimmed_gtf = trim_stop_codons.out

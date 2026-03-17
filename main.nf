@@ -5,6 +5,7 @@ include { SQANTI } from "./subworkflows/sqanti"
 include { FILTER_BY_EXPRESSION } from "./subworkflows/filter_by_expression"
 include { RUN_ORFANAGE } from "./subworkflows/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/prepare_ribotie"
+include { RUN_RIBOTISH } from "./subworkflows/ribotish"
 
 workflow {
     channel.value(file(params.kinnex_adapters)).set { kinnex_adapters }
@@ -15,6 +16,8 @@ workflow {
     channel.value(file(params.refTSS)).set { refTSS }
     channel.value(file(params.polyA_motif_list)).set { polyA_motif_list }
     channel.value(params.star_genomeDir_name).set { star_genomeDir_name }
+    channel.value(params.chrom_sizes).set { chrom_sizes }
+    channel.value(params.chromAlias).set { chromAlias }
 
     PREPROCESSING(params.hifi_reads_bam, kinnex_adapters, isoseq_primers, biosamples_csv)
     ISOSEQ(PREPROCESSING.out.flnc_bam, ref_genome_fasta)
@@ -22,7 +25,7 @@ workflow {
     SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name)
     FILTER_BY_EXPRESSION(RUN_OARFISH.out.oarfish_quant, SQANTI.out.filtered_classification, SQANTI.out.filtered_gtf, SQANTI.out.sqanti_corrected_fasta, params.filter_configs, annotation_gtf)
     RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, annotation_gtf)
-    PREPARE_RIBOTIE(FILTER_BY_EXPRESSION.out.final_transcripts_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta)
+    PREPARE_RIBOTIE(FILTER_BY_EXPRESSION.out.final_transcripts_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias)
 
     PREPARE_RIBOTIE.out.ribotie_db
         .toList()
@@ -30,10 +33,10 @@ workflow {
             def outputs = results.collect { param_name, gtf_h5, ribotie_h5, mode ->
                 [
                     param_set_name: param_name,
-                    gtf_h5: "nextflow_results/ribotie/${param_name}/${mode}/${gtf_h5.name}",
-                    ribotie_h5: "nextflow_results/ribotie/${param_name}/${mode}/${ribotie_h5.name}",
-                    base_dir: "nextflow_results/ribotie/${param_name}/${mode}",
-                    ribotie_yml: "nextflow_results/ribotie/${param_name}/${mode}/RiboTIE.yml"
+                    gtf_h5: "nextflow_results/prepare_ribotie/${param_name}/${mode}/${gtf_h5.name}",
+                    ribotie_h5: "nextflow_results/prepare_ribotie/${param_name}/${mode}/${ribotie_h5.name}",
+                    mode: "${mode}",
+                    ribotie_yml: "nextflow_results/prepare_ribotie/${param_name}/${mode}/RiboTIE.yml"
                 ]
             }
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
@@ -54,6 +57,8 @@ workflow {
                         ribotie_merged_csv: "${base_dir}/ribotie_res_merged.csv",
                         ribotie_merged_novel_gtf: "${base_dir}/ribotie_res_merged.novel.gtf",
                         ribotie_merged_novel_csv: "${base_dir}/ribotie_res_merged.novel.csv",
+                        ribotie_merged_redundant_gtf: "${base_dir}/ribotie_res_merged.redundant.gtf",
+                        ribotie_merged_redundant_csv: "${base_dir}/ribotie_res_merged.redundant.csv",
                     ]
                 } else {
                     entry += [
@@ -74,6 +79,9 @@ workflow {
         .collectFile(name: 'ribotie_training_outputs.json', storeDir: 'nextflow_results/manifests')
 
     FILTER_BY_EXPRESSION.out.final_expression
+        .filter { param_set_name, _final_expression ->
+            param_set_name == "mid_stringency"
+        }
         .join(FILTER_BY_EXPRESSION.out.final_fasta)
         .join(FILTER_BY_EXPRESSION.out.final_classification)
         .join(RUN_ORFANAGE.out.orfanage_gtf)
@@ -93,4 +101,6 @@ workflow {
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
         }
         .collectFile(name: 'main_pipeline_outputs.json', storeDir: 'nextflow_results/manifests')
+    
+    RUN_RIBOTISH(PREPARE_RIBOTIE.out.genome_bam, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, RUN_ORFANAGE.out.orfanage_gtf, ref_genome_fasta)
 }

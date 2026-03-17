@@ -9,7 +9,7 @@ library(argparse)
 parser <- ArgumentParser(description='Create IsoformSwitchAnalyzeR object')
 parser$add_argument('--final_expression', type='character', required=TRUE, help='Path to final expression parquet file')
 parser$add_argument('--primer_to_sample', type='character', required=TRUE, help='Path to primer to sample CSV file')
-parser$add_argument('--corrected_fasta', type='character', required=TRUE, help='Path to corrected FASTA file')
+parser$add_argument('--final_fasta', type='character', required=TRUE, help='Path to corrected FASTA file')
 parser$add_argument('--orfanage_gtf', type='character', required=TRUE, help='Path to orfanage GTF file')
 parser$add_argument('--annotation_gtf', type='character', required=TRUE, help='Path to annotation GTF file')
 parser$add_argument('--final_classification', type='character', required=TRUE, help='Path to final classification parquet file')
@@ -43,7 +43,7 @@ aSwitchList <- importRdata(
     isoformCountMatrix = final_expression,
     designMatrix = myDesign,
     isoformExonAnnoation = args$orfanage_gtf,
-    isoformNtFasta = args$corrected_fasta,
+    isoformNtFasta = args$final_fasta,
     addAnnotatedORFs = TRUE,
     fixStringTieAnnotationProblem = FALSE
 )
