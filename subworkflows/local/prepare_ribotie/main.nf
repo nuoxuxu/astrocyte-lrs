@@ -202,4 +202,5 @@ workflow PREPARE_RIBOTIE {
     emit:
     ribotie_db = generate_ribotie_db.out
     genome_bam = star_riboseq.out.genome_bam
+    transcriptome_bam = star_riboseq.out.transcriptome_bam
 }
