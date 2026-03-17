@@ -1,11 +1,12 @@
-include { PREPROCESSING } from "./subworkflows/preprocessing"
-include { ISOSEQ } from "./subworkflows/isoseq"
-include { RUN_OARFISH } from "./subworkflows/oarfish"
-include { SQANTI } from "./subworkflows/sqanti"
-include { FILTER_BY_EXPRESSION } from "./subworkflows/filter_by_expression"
-include { RUN_ORFANAGE } from "./subworkflows/orfanage"
-include { PREPARE_RIBOTIE } from "./subworkflows/prepare_ribotie"
-include { RUN_RIBOTISH } from "./subworkflows/ribotish"
+include { PREPROCESSING } from "./subworkflows/local/preprocessing"
+include { ISOSEQ } from "./subworkflows/local/isoseq"
+include { RUN_OARFISH } from "./subworkflows/local/oarfish"
+include { SQANTI } from "./subworkflows/local/sqanti"
+include { FILTER_BY_EXPRESSION } from "./subworkflows/local/filter_by_expression"
+include { RUN_ORFANAGE } from "./subworkflows/local/orfanage"
+include { PREPARE_RIBOTIE } from "./subworkflows/local/prepare_ribotie"
+include { RUN_RIBOTISH } from "./subworkflows/local/ribotish"
+include { QUANTIFY_PSEUDO_ALIGNMENT } from "./subworkflows/nf-core/quantify_pseudo_alignment"
 
 workflow {
     channel.value(file(params.kinnex_adapters)).set { kinnex_adapters }
@@ -103,4 +104,18 @@ workflow {
         .collectFile(name: 'main_pipeline_outputs.json', storeDir: 'nextflow_results/manifests')
     
     RUN_RIBOTISH(PREPARE_RIBOTIE.out.genome_bam, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, RUN_ORFANAGE.out.orfanage_gtf, ref_genome_fasta)
+    PREPARE_RIBOTIE.out.transcriptome_bam
+        .map{
+            meta, bam ->
+            def fmeta = [:]
+            fmeta.id = meta
+            [ fmeta, bam ]
+        }
+        .view()
+    ch_samplesheet = channel.value(file("data/samplesheet.csv", checkIfExists: true))
+    ch_samplesheet
+    QUANTIFY_PSEUDO_ALIGNMENT(
+        ch_samplesheet.map { [ [:], it ] },
+        
+    )
 }
