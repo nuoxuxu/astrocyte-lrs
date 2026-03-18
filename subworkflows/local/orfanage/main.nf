@@ -1,7 +1,7 @@
 process runORFanage {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orfanage/${param_set_name}"
+    storeDir "nextflow_results/orf_prediction/orfanage/${param_set_name}"
 
     input:
     path ref_genome_fasta
@@ -34,7 +34,7 @@ process runORFanage {
 process addNoncodingTx {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orfanage/${param_set_name}"
+    storeDir "nextflow_results/orf_prediction/orfanage/${param_set_name}"
 
     input:
     tuple val(param_set_name), path(orfanage_gtf), path(final_transcripts_gtf)
@@ -54,7 +54,7 @@ process addNoncodingTx {
 process fixORFanageFormat {
     label "short_slurm_job"
     container "quay.io/biocontainers/agat:1.4.2--pl5321hdfd78af_0"
-    storeDir "nextflow_results/orfanage/${param_set_name}"
+    storeDir "nextflow_results/orf_prediction/orfanage/${param_set_name}"
 
     input:
     path ref_genome_fasta
@@ -74,7 +74,7 @@ process fixORFanageFormat {
 process restoreAgatRemovedTx {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orfanage/${param_set_name}"
+    storeDir "nextflow_results/orf_prediction/orfanage/${param_set_name}"
 
     input:
     tuple val(param_set_name), path(complete_orfanage_gtf), path(agat_output_gtf)
@@ -96,7 +96,7 @@ process restoreAgatRemovedTx {
 process translateORFs {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orfanage/${param_set_name}"
+    storeDir "nextflow_results/orf_prediction/orfanage/${param_set_name}"
 
     input:
     path ref_genome_fasta

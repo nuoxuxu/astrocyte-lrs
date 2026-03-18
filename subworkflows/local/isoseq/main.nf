@@ -36,7 +36,7 @@ process cluster {
 process pbmm2 {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/pbmm2"
+    storeDir "nextflow_results/align/long_read/pbmm2"
     input:
     path ref_genome_fasta
     path clustered_bam

@@ -37,7 +37,7 @@ process merge_flnc_bams {
 process minimap2_transcriptome {
     conda "/scratch/nxu/astrocytes/env"
     label "mid_slurm_job"
-    storeDir "nextflow_results/align/minimap2_transcriptome"
+    storeDir "nextflow_results/align/long_read/minimap2_transcriptome"
 
     input:
     path extracted_transcriptome

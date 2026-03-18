@@ -35,7 +35,7 @@ process convert_flnc_bam_to_fastqz {
 process minimap2_genome {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/minimap2_genome"    
+    storeDir "nextflow_results/align/long_read/minimap2_genome"    
     input:
     path fastqz
     output:

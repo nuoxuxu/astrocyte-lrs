@@ -26,7 +26,7 @@ process star_genomeGenerate {
 process star_sr_genome {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/star/sr_genome"
+    storeDir "nextflow_results/align/short_read/gencode"
     input:
     path star_genomeDir
     tuple val(sample_id), path(fastq_files)

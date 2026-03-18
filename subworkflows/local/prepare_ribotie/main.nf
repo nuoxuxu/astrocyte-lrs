@@ -1,7 +1,7 @@
 process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orfanage/${param_set_name}"
+    storeDir "nextflow_results/orf_prediction/orfanage/${param_set_name}"
     
     input:
     tuple val(param_set_name), path(orfanage_gtf), path(final_classification), path(annotation_gtf)
@@ -22,7 +22,7 @@ process format_gtf_for_ribotie {
 process rename_chromosomes {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq/"
+    storeDir "nextflow_results/other"
 
     input:
     path(chrom_sizes)
@@ -42,7 +42,7 @@ process rename_chromosomes {
 process star_riboseq {
     module "StdEnv/2023:star/2.7.11b:samtools/1.22.1"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq/${param_set_name}"
+    storeDir "nextflow_results/align/riboseq/${param_set_name}"
     
     input:
     tuple path(star_genomeDir), path(riboseq_unmapped_to_contaminants), val(param_set_name), path(sjdbGTFfile)

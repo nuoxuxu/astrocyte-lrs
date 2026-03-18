@@ -95,8 +95,8 @@ workflow {
                     final_expression: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_expression.parquet",
                     final_fasta: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_transcripts.fasta",
                     final_classification: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_classification.parquet",
-                    orfanage_gtf: "nextflow_results/orfanage/${param_name}/orfanage.gtf",
-                    orfanage_proteins: "nextflow_results/orfanage/${param_name}/orfanage_proteins.fasta",
+                    orfanage_gtf: "nextflow_results/orf_prediction/orfanage/${param_name}/orfanage.gtf",
+                    orfanage_proteins: "nextflow_results/orf_prediction/orfanage/${param_name}/orfanage_proteins.fasta",
                 ]
             }
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
@@ -104,18 +104,18 @@ workflow {
         .collectFile(name: 'main_pipeline_outputs.json', storeDir: 'nextflow_results/manifests')
     
     RUN_RIBOTISH(PREPARE_RIBOTIE.out.genome_bam, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, RUN_ORFANAGE.out.orfanage_gtf, ref_genome_fasta)
-    PREPARE_RIBOTIE.out.transcriptome_bam
+    
+    reads = PREPARE_RIBOTIE.out.transcriptome_bam
         .map{
-            meta, bam ->
-            def fmeta = [:]
-            fmeta.id = meta
-            [ fmeta, bam ]
+            _param_set_name, bam ->
+            def meta = [:]
+            meta.id = bam.name.minus("_Unmapped.Aligned.toTranscriptome.out.bam")
+            [ meta, bam ]
         }
-        .view()
-    ch_samplesheet = channel.value(file("data/samplesheet.csv", checkIfExists: true))
-    ch_samplesheet
-    QUANTIFY_PSEUDO_ALIGNMENT(
-        ch_samplesheet.map { [ [:], it ] },
+    // ch_samplesheet = channel.value(file("data/samplesheet.csv", checkIfExists: true))
+    // ch_samplesheet
+    // QUANTIFY_PSEUDO_ALIGNMENT(
+    //     ch_samplesheet.map { [ [:], it ] },
         
-    )
+    // )
 }
