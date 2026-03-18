@@ -125,7 +125,7 @@ process generate_ribotie_db {
 process merge_bg_and_convert_to_bw {
     module "StdEnv/2023:bedtools/2.31.0:kent_tools/486"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/star/riboseq/${param_set_name}"
+    storeDir "nextflow_results/align/riboseq/${param_set_name}"
     
     input:
     tuple val(param_set_name), path(bedgraph_files), path(chrom_sizes)

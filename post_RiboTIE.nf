@@ -1,6 +1,6 @@
-include { GET_QUALITY_METRICS } from "./subworkflows/quality"
-include { ISOFORMSWITCH } from "./subworkflows/IsoformSwitchAnalyzeR/main.nf"
-include { RIBOTIE_POSTANALYSIS } from "./subworkflows/ribotie_postanalysis/main.nf"
+include { GET_QUALITY_METRICS } from "./subworkflows/local/quality"
+include { ISOFORMSWITCH } from "./subworkflows/local/IsoformSwitchAnalyzeR/main.nf"
+include { RIBOTIE_POSTANALYSIS } from "./subworkflows/local/ribotie_postanalysis/main.nf"
 
 workflow {
     channel.value(file(params.annotation_gtf)).set { annotation_gtf }
