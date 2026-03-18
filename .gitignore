@@ -1,22 +1,46 @@
+# Nextflow
 work/
 nextflow_results/
 proc/
 .nextflow/
-.vscode/
-astrocyte_vis_app/**
-!astrocyte_vis_app/app.R
-slurm_logs/
 .nextflow.log*
+
+# Pipeline outputs
 figures/
-env/
+export/
+ribotie_res/
+
+# Data
 data/
+from_collaborator/
+
+# HPC / SLURM
+slurm_logs/
+scripts/sbatch/
 $SCRATCH/
+
+# Python
 __pycache__
 **/__init__.pyc
-pytorch/
-ribotie_res/
-from_collaborator/
-scripts/sbatch/
-.DS_Store
-export/
+
+# R / Shiny
+astrocyte_vis_app/**
+!astrocyte_vis_app/app.R
+
+# Notebooks
 notebooks/
+
+# Marimo
+__marimo__/
+
+# uv
+pyproject.toml
+uv.lock
+
+# Environment
+env/
+pytorch/
+
+# IDE / OS
+.vscode/
+.DS_Store
