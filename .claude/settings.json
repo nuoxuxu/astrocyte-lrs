@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add bin/format_gtf_for_ribotie.py bin/make_combined_gtf_for_ribotie.py main.nf subworkflows/prepare_ribotie/main.nf CLAUDE.md astrocyte_vis_app/app.R modules/local/riboseq.nf modules/local/sqanti3.nf scripts/venn_diagram.R)",
+      "Bash(git commit:*)",
+      "Bash(git push origin main)",
+      "Read(//Users/xunuo/Genomic_references/GENCODE/**)",
+      "Bash(python scripts/novel_unique_cds_bins.py)",
+      "Bash(python scripts/plot_roc.py)",
+      "Read(//Users/xunuo/projects/astrocyte-lrs/**)",
+      "Bash(sort -k4,4n)",
+      "Bash(conda run:*)",
+      "Bash(conda install:*)",
+      "Bash(ls /Users/xunuo/projects/astrocyte-lrs/data/*.fa*)",
+      "Bash(ls /Users/xunuo/projects/astrocyte-lrs/data/*.fna*)",
+      "Read(//Users/xunuo/**)",
+      "Read(//Volumes/**)",
+      "Read(//Users/xunuo/projects/astrocyte-lrs/$3==\"\"\"\"\"\"\"\"CDS\"\"\"\"\"\"\"\" && $1~/**)",
+      "Bash(ls -lh /Users/xunuo/projects/astrocyte-lrs/data/*.gtf)",
+      "Bash(ls -lh /Users/xunuo/projects/astrocyte-lrs/data/*.xlsx)",
+      "Bash(conda env:*)",
+      "Bash(ls -lh /Users/xunuo/Genomic_references/GENCODE/GRCh38.primary_assembly.genome.fa*)",
+      "Bash(ls -la data/*.gtf)",
+      "Bash(ls nextflow_results/ribotish/mid_stringency/*.gtf)"
+    ]
+  }
+}
