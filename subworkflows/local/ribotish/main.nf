@@ -51,7 +51,6 @@ process ORFannotate {
     tuple val(param_set_name), path("cds.fa"), emit: cds_fa
     tuple val(param_set_name), path("protein.fa"), emit: proteins_fa
     tuple val(param_set_name), path("ORFannotate_annotated.gtf"), emit: ORFannotate_annotated_gtf
-    tuple val(param_set_name), path("ORFannotate_all_orfs.gtf"), emit: ORFannotate_all_orfs
     tuple val(param_set_name), path("ORFannotate_summary.tsv"), emit: ORFannotate_summary_tsv
     tuple val(param_set_name), path("ORFannotate.log"), emit: ORFannotate_log
 
@@ -68,7 +67,7 @@ process trim_stop_codons {
     storeDir "nextflow_results/ribotish/ORFannotate/${param_set_name}"
 
     input:
-    tuple val(param_set_name), path(ORFannotate_all_orfs)
+    tuple val(param_set_name), path(ORFannotate_annotated_gtf)
     
     output:
     tuple val(param_set_name), path("ribotish.gtf")
@@ -76,7 +75,7 @@ process trim_stop_codons {
     script:
     """
     source /scratch/nxu/astrocytes/pytorch/bin/activate
-    trim_ribotish_stop_codon.py --input_gtf $ORFannotate_all_orfs --output_gtf ribotish.gtf
+    trim_ribotish_stop_codon.py --input_gtf $ORFannotate_annotated_gtf --output_gtf ribotish.gtf
     """
 }
 
@@ -126,7 +125,7 @@ workflow RUN_RIBOTISH {
         .combine(ref_genome_fasta)
         | ORFannotate
 
-    trim_stop_codons(ORFannotate.out.ORFannotate_all_orfs)
+    trim_stop_codons(ORFannotate.out.ORFannotate_annotated_gtf)
 
     trim_stop_codons.out
         | save_to_parquet
