@@ -7,6 +7,8 @@ include { RUN_ORFANAGE } from "./subworkflows/local/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/local/prepare_ribotie"
 include { RUN_RIBOTISH } from "./subworkflows/local/ribotish"
 include { QUANTIFY_PSEUDO_ALIGNMENT } from "./subworkflows/nf-core/quantify_pseudo_alignment"
+include { SALMON_INDEX } from "./modules/nf-core/salmon/index"
+include { ANOTA2SEQ_ANOTA2SEQRUN } from "./modules/nf-core/anota2seq/anota2seqrun"
 
 workflow {
     channel.value(file(params.kinnex_adapters)).set { kinnex_adapters }
@@ -105,17 +107,52 @@ workflow {
     
     RUN_RIBOTISH(PREPARE_RIBOTIE.out.genome_bam, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, RUN_ORFANAGE.out.orfanage_gtf, ref_genome_fasta)
     
-    reads = PREPARE_RIBOTIE.out.transcriptome_bam
-        .map{
-            _param_set_name, bam ->
-            def meta = [:]
-            meta.id = bam.name.minus("_Unmapped.Aligned.toTranscriptome.out.bam")
-            [ meta, bam ]
-        }
+    // reads = PREPARE_RIBOTIE.out.transcriptome_bam
+    //     .map{
+    //         _param_set_name, bam ->
+    //         def meta = [:]
+    //         meta.id = bam.name.minus("_Unmapped.Aligned.toTranscriptome.out.bam")
+    //         [ meta, bam ]
+    //     }
     // ch_samplesheet = channel.value(file("data/samplesheet.csv", checkIfExists: true))
-    // ch_samplesheet
+
+    // transcript_fasta = FILTER_BY_EXPRESSION.out.final_fasta
+    //     .filter{ param_set_name, _final_fasta -> param_set_name == "mid_stringency" }
+    //     .map{ _param_set_name, final_fasta -> final_fasta }
+
+    // ref_genome_fasta
+    //     .combine(transcript_fasta)
+    //     | SALMON_INDEX
+
     // QUANTIFY_PSEUDO_ALIGNMENT(
     //     ch_samplesheet.map { [ [:], it ] },
-        
+    //     reads,
+    //     SALMON_INDEX.out,
+    //     transcript_fasta,
+    //     FILTER_BY_EXPRESSION.out.final_transcripts_gtf.filter{ param_set_name, _final_transcripts_gtf -> param_set_name == "mid_stringency" },
+    //     "gene_id",
+    //     null,
+    //     "salmon",
+    //     null,
+    //     null,
+    //     null
     // )
+
+    // channel.value(file(params.ch_contrasts_file)).set{ ch_contrasts_file }
+    // if (ch_contrasts_file){
+
+    //     ch_contrasts = ch_contrasts_file
+    //         .splitCsv ( header:true, sep:',' )
+    //         .map{[it, it.variable, it.reference, it.target]}
+
+    //     ch_samplesheet_matrix = QUANTIFY_PSEUDO_ALIGNMENT.out.counts_gene_length_scaled
+    //         .combine(ch_samplesheet)
+    //         .map{[it[0], it[2], it[1]]}
+    //         .first()
+
+    //     ANOTA2SEQ_ANOTA2SEQRUN(
+    //         ch_contrasts,
+    //         ch_samplesheet_matrix
+    //     )
+    // }
 }

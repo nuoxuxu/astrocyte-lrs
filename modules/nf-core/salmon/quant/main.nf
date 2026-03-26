@@ -2,10 +2,7 @@ process SALMON_QUANT {
     tag "${meta.id}"
     label "process_medium"
 
-    conda "${moduleDir}/environment.yml"
-    container "${workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-        ? 'https://depot.galaxyproject.org/singularity/salmon:1.10.3--h6dccd9a_2'
-        : 'biocontainers/salmon:1.10.3--h6dccd9a_2'}"
+    module "StdEnv/2023:salmon/1.10.2"
 
     input:
     tuple val(meta), path(reads)

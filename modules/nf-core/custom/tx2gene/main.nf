@@ -2,10 +2,8 @@ process CUSTOM_TX2GENE {
     tag "$meta.id"
     label 'process_single'
 
-    conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/python:3.10.4' :
-        'biocontainers/python:3.10.4' }"
+    module "python:gcc:arrow/19.0.1:rust"
+    beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
 
     input:
     tuple val(meta), path(gtf)

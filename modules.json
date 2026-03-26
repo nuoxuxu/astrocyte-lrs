@@ -19,6 +19,13 @@
                             "quantify_pseudo_alignment"
                         ]
                     },
+                    "salmon/index": {
+                        "branch": "master",
+                        "git_sha": "196cde9b19d49324c5cf10977959f5db856ebbdd",
+                        "installed_by": [
+                            "modules"
+                        ]
+                    },
                     "salmon/quant": {
                         "branch": "master",
                         "git_sha": "9ebc300e05af07c770b86ff089581a2d41346c8b",

@@ -2,10 +2,7 @@ process SUMMARIZEDEXPERIMENT_SUMMARIZEDEXPERIMENT {
     tag "$meta.id"
     label 'process_medium'
 
-    conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/bioconductor-summarizedexperiment:1.32.0--r43hdfd78af_0' :
-        'biocontainers/bioconductor-summarizedexperiment:1.32.0--r43hdfd78af_0' }"
+    module "python:gcc:arrow/19.0.1:rust:r/4.4.0"
 
     input:
     tuple val(meta), path(matrix_files)
