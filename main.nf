@@ -5,7 +5,6 @@ include { SQANTI } from "./subworkflows/local/sqanti"
 include { FILTER_BY_EXPRESSION } from "./subworkflows/local/filter_by_expression"
 include { RUN_ORFANAGE } from "./subworkflows/local/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/local/prepare_ribotie"
-include { RUN_RIBOTISH } from "./subworkflows/local/ribotish"
 include { QUANTIFY_PSEUDO_ALIGNMENT } from "./subworkflows/nf-core/quantify_pseudo_alignment"
 include { SALMON_INDEX } from "./modules/nf-core/salmon/index"
 include { ANOTA2SEQ_ANOTA2SEQRUN } from "./modules/nf-core/anota2seq/anota2seqrun"
@@ -104,8 +103,6 @@ workflow {
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
         }
         .collectFile(name: 'main_pipeline_outputs.json', storeDir: 'nextflow_results/manifests')
-    
-    RUN_RIBOTISH(PREPARE_RIBOTIE.out.genome_bam, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, RUN_ORFANAGE.out.orfanage_gtf, ref_genome_fasta)
     
     // reads = PREPARE_RIBOTIE.out.transcriptome_bam
     //     .map{

@@ -115,8 +115,6 @@ nextflow run main.nf -profile local
 
 ```
 PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI → FILTER_BY_EXPRESSION → RUN_ORFANAGE → PREPARE_RIBOTIE
-                                                                                              ↓
-                                                                                       RUN_RIBOTISH
 ```
 
 1. **PREPROCESSING** — PacBio demultiplexing: `skera` (Kinnex adapter removal) → `lima` (primer removal) → `isoseq refine` (FLNC BAM generation)
@@ -126,7 +124,6 @@ PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI → FILTER_BY_EXPRESSION →
 5. **FILTER_BY_EXPRESSION** — Applies the three stringency filter configs in parallel; outputs tagged `[param_set_name, file]`
 6. **RUN_ORFANAGE** — ORF annotation and protein sequence extraction with ORFanage
 7. **PREPARE_RIBOTIE** — Ribo-seq alignment (STAR) and RiboTIE database preparation
-8. **RUN_RIBOTISH** — RiboTISH ORF prediction from Ribo-seq data
 
 ### RiboTIE.nf
 
@@ -165,4 +162,4 @@ Processes use `storeDir` for persistent caching; re-running skips completed proc
 
 - `bin/` — Executable scripts on the Nextflow PATH. Shared utilities (GTF parsing, logging) are in `bin/src/`.
 - `scripts/` — Ad-hoc analysis scripts and SLURM batch templates (`scripts/sbatch/`). Not called by the pipeline.
-  - `scripts/deduplicate_cds_transcripts.py` — Deduplicates RiboTISH/RiboTIE transcripts that share identical CDS coordinates; writes `transcript_id` → `transcript_id_base` mapping CSVs to `export/local/`.
+  - `scripts/deduplicate_cds_transcripts.py` — Deduplicates RiboTIE transcripts that share identical CDS coordinates; writes `transcript_id` → `transcript_id_base` mapping CSVs to `export/local/`.
