@@ -1,5 +1,3 @@
-include { FILTER_RIBOTIE } from "./subworkflows/local/filter_ribotie/main.nf"
-
 process RUN_RIBOTIE {
     module "python:gcc:arrow/19.0.1:rust"
     label "mid_slurm_job"
@@ -58,5 +56,4 @@ workflow {
 
     RUN_RIBOTIE(gpu_input_ch)
     save_to_parquet(RUN_RIBOTIE.out.redundant_gtf)
-    FILTER_RIBOTIE(RUN_RIBOTIE.out.filtered_gtf, channel.value(file(params.ribotie_cpm1_3sample)))
 }

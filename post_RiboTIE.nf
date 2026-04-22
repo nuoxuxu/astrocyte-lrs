@@ -1,6 +1,7 @@
 include { GET_QUALITY_METRICS } from "./subworkflows/local/quality"
 include { ISOFORMSWITCH } from "./subworkflows/local/IsoformSwitchAnalyzeR/main.nf"
 include { RIBOTIE_POSTANALYSIS } from "./subworkflows/local/ribotie_postanalysis/main.nf"
+include { FILTER_RIBOTIE } from "./subworkflows/local/filter_ribotie/main.nf"
 
 workflow {
     channel.value(file(params.annotation_gtf)).set { annotation_gtf }
@@ -33,12 +34,12 @@ workflow {
         .map { entry -> tuple(entry.param_set_name, file(entry.orfanage_proteins)) }
         .set { orfanage_proteins }
 
-    channel.fromPath(params.main_pipeline_outputs)
+    channel.fromPath(params.ribotie_training_outputs)
         .splitJson()
-        .map { entry -> entry.ribotie_output_gtf }
-        .set { ribotie_output_gtf }
-    
-    ribotie_output_gtf.view()
+        .map { entry -> tuple(entry.param_set_name, file(entry.ribotie_merged_gtf)) }
+        .set { ribotie_filtered_gtf }
+
+    FILTER_RIBOTIE(ribotie_filtered_gtf, channel.value(file(params.ribotie_cpm1_3sample)))
 
     ISOFORMSWITCH(final_expression, primer_to_sample, final_fasta, orfanage_gtf, annotation_gtf, final_classification, orfanage_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
     GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db)
