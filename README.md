@@ -59,20 +59,10 @@ All parameters are defined in `nextflow.config`. Key parameters:
 | `ref_genome_fasta` | GRCh38 reference genome FASTA |
 | `annotation_gtf` | GENCODE annotation GTF (v47) |
 | `biosamples_csv` | Sample metadata for demultiplexing |
-| `filter_configs` | List of `[name, min_reads, min_samples]` filter stringency sets |
+| `min_reads` | Minimum read count per transcript for expression filtering (default: 5) |
+| `min_n_sample` | Minimum number of samples meeting `min_reads` threshold (default: 2) |
 | `outdir` | Output directory (default: `nextflow_results`) |
 
-### Filter stringency sets
-
-Three parallel filter configurations are run through the pipeline:
-
-| Name | Min reads | Min samples |
-|---|---|---|
-| `low_stringency` | 1 | 2 |
-| `mid_stringency` | 5 | 2 |
-| `high_stringency` | 5 | 3 |
-
-Downstream steps use `mid_stringency` results by default (e.g., IsoformSwitchAnalyzeR, post-RiboTIE analysis).
 
 ## Running the Pipeline
 
@@ -148,9 +138,7 @@ nextflow_results/
 ├── isoseq/                            # Collapsed transcript GTF + BAM
 ├── oarfish/                           # Quantification results
 ├── sqanti3/isoseq/sqanti3_filter/
-│   ├── low_stringency/
-│   ├── mid_stringency/
-│   └── high_stringency/
+│   └── mid_stringency/
 ├── orf_prediction/orfanage/           # ORF GTF + protein FASTA per stringency
 ├── prepare_ribotie/                   # STAR BAMs + RiboTIE .h5 databases
 └── ribotie/                           # RiboTIE predictions per stringency

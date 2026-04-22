@@ -70,19 +70,18 @@ workflow FILTER_BY_EXPRESSION {
     filtered_classification
     filtered_gtf
     sqanti_corrected_fasta
-    filter_configs
     annotation_gtf
 
     main:
-    channel.fromList(filter_configs).set { isoform_exp_filter_params }
-
     filter_by_expression_input_ch = oarfish_quant
         .collect()
         .toList()
         .combine(filtered_classification)
         .combine(filtered_gtf)
         .combine(sqanti_corrected_fasta)
-        .combine(isoform_exp_filter_params)
+        .map { oarfish, cls, gtf, fasta ->
+            tuple(oarfish, cls, gtf, fasta, "mid_stringency", params.min_reads, params.min_n_sample)
+        }
     filter_by_expression(filter_by_expression_input_ch)
     
     GffCompare(annotation_gtf, filter_by_expression.out.final_transcripts_gtf)

@@ -164,9 +164,6 @@ workflow PREPARE_RIBOTIE {
         | format_gtf_for_ribotie
     
     orfanage_numbered_exons_gtf = format_gtf_for_ribotie.out
-        .filter { param_set_name, _orfanage_numbered_exons_gtf ->
-            param_set_name == "mid_stringency"
-        }
 
     // Align Ribo-seq reads to transcriptome
     star_genomeDir

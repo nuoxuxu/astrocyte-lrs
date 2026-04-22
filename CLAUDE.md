@@ -47,7 +47,7 @@ PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI_AND_FILTER_BY_EXP → RUN_OR
 
 ### Key Design Patterns
 
-- **Dual-filter strategy**: `filter_configs` runs three parallel parameter sets (`low_stringency`, `mid_stringency` and `high_stringency`) through the pipeline. Outputs are tagged with `param_set_name` as a tuple element.
+- **Single-filter strategy**: `min_reads` (default: 5) and `min_n_sample` (default: 2) define the expression filter applied as `mid_stringency`. Outputs are tagged with `param_set_name = "mid_stringency"` as a tuple element.
 - **JSON manifests**: Cross-workflow communication between `main.nf`, `post_RiboTIE,nf` and `RiboTIE.nf` via JSON files in `nextflow_results/manifests/`.
 - **storeDir**: Processes use `storeDir` for persistent output caching (not Nextflow's default `publishDir`).
 - **Channel tuples**: Data flows as `[param_set_name, file]` tuples for tracking filter config provenance.
@@ -65,4 +65,4 @@ Managed via Conda (`environment.yml`) and Apptainer/Singularity containers. Key 
 
 ## Output Structure
 
-Results go to `params.outdir` (default: `nextflow_results`), organized by stage then by stringency level (e.g., `sqanti3/isoseq/sqanti3_filter/low_stringency/`).
+Results go to `params.outdir` (default: `nextflow_results`), organized by stage (e.g., `sqanti3/isoseq/sqanti3_filter/mid_stringency/`).
