@@ -33,10 +33,6 @@ notebooks/
 # Marimo
 __marimo__/
 
-# uv
-pyproject.toml
-uv.lock
-
 # Environment
 env/
 pytorch/
