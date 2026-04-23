@@ -2,38 +2,35 @@
 """Generate a RiboTIE config YAML file from input file paths."""
 
 import argparse
-import glob
+import csv
 import os
 import re
 import yaml
 
 
-BAM_SUFFIX = "_Unmapped.Aligned.toTranscriptome.out.bam"
+BAM_SAMPLE_RE = re.compile(r'_([A-Za-z])_Unmapped')
 
 
-def extract_sample_key(bam_path):
-    """Extract sample key from BAM filename by removing the known suffix."""
+def extract_sample_letter(bam_path):
+    """Extract the single-letter sample identifier from a BAM filename."""
     basename = os.path.basename(bam_path)
-    if basename.endswith(BAM_SUFFIX):
-        return basename[: -len(BAM_SUFFIX)]
-    return os.path.splitext(basename)[0]
+    m = BAM_SAMPLE_RE.search(basename)
+    if not m:
+        raise ValueError(f"Could not extract sample letter from BAM filename: {basename}")
+    return m.group(1)
 
 
-def parse_samples(sample_args, ribo_keys):
-    """Parse sample groupings from 'GroupName:key1,key2' format."""
-    samples = {}
-    if not sample_args:
-        return None
-    for entry in sample_args:
-        group_name, keys_str = entry.split(":", 1)
-        keys = [k.strip() for k in keys_str.split(",")]
-        for k in keys:
-            if k not in ribo_keys:
-                raise ValueError(
-                    f"Sample key '{k}' not found in ribo_paths keys: {ribo_keys}"
-                )
-        samples[group_name] = keys
-    return samples
+def load_labels(csv_path):
+    """Load sample labels CSV, returning a dict mapping letter -> (sample_name, condition)."""
+    labels = {}
+    with open(csv_path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sample = row["Sample"].strip()
+            condition = row["Condition"].strip()
+            letter = sample.rsplit("_", 1)[-1]
+            labels[letter] = (sample, condition)
+    return labels
 
 
 def main():
@@ -43,26 +40,24 @@ def main():
     parser.add_argument("--gtf", required=True, help="Path to GTF file")
     parser.add_argument("--fa", required=True, help="Path to genome FASTA file")
     parser.add_argument(
-        "--bam-glob",
+        "--bams",
+        nargs="+",
         required=True,
-        help="Glob pattern for ribosome profiling BAM files "
-        f"(files should end with '{BAM_SUFFIX}')",
+        help="Ribosome profiling BAM files",
     )
     parser.add_argument("--h5", required=True, help="Path to output HDF5 file")
     parser.add_argument("--out-prefix", required=True, help="Output prefix")
     parser.add_argument(
+        "--labels",
+        required=True,
+        help="CSV file with Sample and Condition columns",
+    )
+    parser.add_argument(
         "--mode",
         required=True,
         choices=["merged", "separate"],
-        help="'merged': all samples in one group (flat list); "
-        "'separate': samples split into groups (requires --samples)",
-    )
-    parser.add_argument(
-        "--samples",
-        nargs="+",
-        metavar="GROUP:key1,key2",
-        help="Sample groupings, e.g. Unstim:astro_A,astro_B Stim:astro_C,astro_D "
-        "(required when --mode=separate)",
+        help="'merged': all samples in one group; "
+        "'separate': samples grouped by condition from --labels",
     )
     parser.add_argument(
         "-o",
@@ -73,48 +68,42 @@ def main():
 
     args = parser.parse_args()
 
-    # Resolve BAM files from glob pattern
-    bam_files = sorted(glob.glob(args.bam_glob))
-    if not bam_files:
-        parser.error(f"No BAM files matched glob pattern: {args.bam_glob}")
+    label_map = load_labels(args.labels)
 
-    # Build ribo_paths dict
     ribo_paths = {}
-    for bam in bam_files:
-        key = extract_sample_key(bam)
-        ribo_paths[key] = bam
+    sample_condition = {}
+    samples_by_condition = {}
+    for bam in sorted(args.bams):
+        letter = extract_sample_letter(bam)
+        if letter not in label_map:
+            raise ValueError(
+                f"Letter '{letter}' from BAM '{os.path.basename(bam)}' not found in labels CSV"
+            )
+        sample_name, condition = label_map[letter]
+        ribo_paths[sample_name] = bam
+        sample_condition[sample_name] = condition
+        samples_by_condition.setdefault(condition, []).append(sample_name)
 
-    # Build config
     config = {
         "gtf_path": args.gtf,
         "fa_path": args.fa,
         "ribo_paths": ribo_paths,
         "h5_path": args.h5,
         "out_prefix": args.out_prefix,
+        "samples": (
+            {"merged": list(ribo_paths.keys())}
+            if args.mode == "merged"
+            else samples_by_condition
+        ),
     }
-
-    # Add samples
-    if args.mode == "merged":
-        if args.samples:
-            groups = parse_samples(args.samples, list(ribo_paths.keys()))
-            flat = []
-            for keys in groups.values():
-                flat.extend(keys)
-            config["samples"] = {"merged": flat}
-        else:
-            config["samples"] = {"merged": list(ribo_paths.keys())}
-    else:
-        if not args.samples:
-            parser.error("--samples is required when --mode=separate")
-        config["samples"] = parse_samples(args.samples, list(ribo_paths.keys()))
 
     with open(args.output, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     print(f"Config written to {args.output}")
     print(f"Found {len(ribo_paths)} BAM files:")
-    for key, path in ribo_paths.items():
-        print(f"  {key}: {path}")
+    for sample, path in ribo_paths.items():
+        print(f"  {sample} ({sample_condition[sample]}): {path}")
 
 
 if __name__ == "__main__":
