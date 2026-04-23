@@ -178,4 +178,47 @@ def read_gtf(file, attributes=["transcript_id"], keep_attributes=True):
         return pl.read_csv(file, separator="\t", comment_prefix="#", schema_overrides = {"seqname": pl.String}, has_header = False, new_columns=["seqname","source","feature","start","end","score","strand","frame","attributes"])\
             .with_columns(
                 [pl.col("attributes").str.extract(rf'{attribute} "([^;]*)";').alias(attribute) for attribute in attributes]
-                ).drop("attributes")        
+                ).drop("attributes")
+
+def write_fasta(df, output_file):
+    with open(output_file, "w") as f:
+        for row in df.iter_rows(named=True):
+            f.write(f">{row['transcript_id']}\n{row['seq']}\n")
+
+def read_fasta(fasta_file, gencode = False):
+    """
+    Reads a FASTA file and converts it into a Polars DataFrame.
+    Removes '*' from sequences.
+    
+    Args:
+        fasta_file (str): Path to the FASTA file.
+    
+    Returns:
+        polars.DataFrame: A DataFrame with 'transcript_id' and 'seq' columns.
+    """
+    sequences = []
+    transcript_id = None
+    seq = []
+    
+    with open(fasta_file, "r") as file:
+        for line in file:
+            line = line.strip()
+            if line.startswith(">"):  # Header line
+                if transcript_id is not None:  # Save previous entry
+                    sequences.append((transcript_id, "".join(seq).replace("*", "")))  # Strip '*'
+                # Extract transcript_id (substring before the first space)
+                if gencode is False:
+                    transcript_id = line[1:].split(" ", 1)[0]
+                else:
+                    transcript_id = line[1:].split("|")[1]
+                seq = []  # Reset sequence
+            else:
+                seq.append(line)  # Collect sequence lines
+
+    # Add the last sequence
+    if transcript_id is not None:
+        sequences.append((transcript_id, "".join(seq).replace("*", "")))  # Strip '*'
+    
+    # Convert to Polars DataFrame
+    df = pl.DataFrame(sequences, schema=["transcript_id", "seq"], orient="row")
+    return df    

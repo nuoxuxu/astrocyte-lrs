@@ -39,7 +39,7 @@ workflow {
         .map { entry -> tuple(entry.param_set_name, file(entry.ribotie_merged_gtf)) }
         .set { ribotie_filtered_gtf }
 
-    FILTER_RIBOTIE(ribotie_filtered_gtf, channel.value(file(params.ribotie_cpm1_3sample)))
+    FILTER_RIBOTIE(ribotie_filtered_gtf, channel.value(file(params.ribotie_cpm1_3sample)), final_fasta, final_expression)
 
     ISOFORMSWITCH(final_expression, primer_to_sample, final_fasta, orfanage_gtf, annotation_gtf, final_classification, orfanage_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
     GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db)

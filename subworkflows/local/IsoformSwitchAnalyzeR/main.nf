@@ -119,5 +119,5 @@ workflow ISOFORMSWITCH {
     | IsoseqsSwitchList
 
     run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
-    pfam_scan(translation_fasta, pfamdb)    
+    pfam_scan(translation_fasta, pfamdb)
 }
