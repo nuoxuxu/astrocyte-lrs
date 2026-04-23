@@ -11,32 +11,32 @@ workflow {
 
     channel.fromPath(params.main_pipeline_outputs)
         .splitJson()
-        .map { entry -> tuple(entry.param_set_name, file(entry.final_expression)) }
+        .map { entry -> file(entry.final_expression) }
         .set { final_expression }
 
     channel.fromPath(params.main_pipeline_outputs)
         .splitJson()
-        .map { entry -> tuple(entry.param_set_name, file(entry.final_fasta)) }
+        .map { entry -> file(entry.final_fasta) }
         .set { final_fasta }
 
     channel.fromPath(params.main_pipeline_outputs)
         .splitJson()
-        .map { entry -> tuple(entry.param_set_name, file(entry.final_classification)) }
+        .map { entry -> file(entry.final_classification) }
         .set { final_classification }
 
     channel.fromPath(params.main_pipeline_outputs)
         .splitJson()
-        .map { entry -> tuple(entry.param_set_name, file(entry.orfanage_gtf)) }
+        .map { entry -> file(entry.orfanage_gtf) }
         .set { orfanage_gtf }
 
     channel.fromPath(params.main_pipeline_outputs)
         .splitJson()
-        .map { entry -> tuple(entry.param_set_name, file(entry.orfanage_proteins)) }
+        .map { entry -> file(entry.orfanage_proteins) }
         .set { orfanage_proteins }
 
     channel.fromPath(params.ribotie_training_outputs)
         .splitJson()
-        .map { entry -> tuple(entry.param_set_name, file(entry.ribotie_merged_gtf)) }
+        .map { entry -> file(entry.ribotie_merged_gtf) }
         .set { ribotie_filtered_gtf }
 
     FILTER_RIBOTIE(ribotie_filtered_gtf, channel.value(file(params.ribotie_cpm1_3sample)), final_fasta, final_expression)

@@ -1,13 +1,13 @@
 process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orf_prediction/orfanage/${param_set_name}"
-    
+    storeDir "nextflow_results/orf_prediction/orfanage/mid_stringency"
+
     input:
-    tuple val(param_set_name), path(orfanage_gtf), path(final_classification), path(annotation_gtf)
+    tuple path(orfanage_gtf), path(final_classification), path(annotation_gtf)
 
     output:
-    tuple val(param_set_name), path("orfanage_numbered_exons.gtf")
+    path("orfanage_numbered_exons.gtf")
 
     script:
     """
@@ -39,23 +39,24 @@ process rename_chromosomes {
         --chrom_sizes $chrom_sizes > hg38.p13.GENCODE_chrom.size
     """
 }
+
 process star_riboseq {
     module "StdEnv/2023:star/2.7.11b:samtools/1.22.1"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/riboseq/${param_set_name}"
-    
+    storeDir "nextflow_results/align/riboseq/mid_stringency"
+
     input:
-    tuple path(star_genomeDir), path(riboseq_unmapped_to_contaminants), val(param_set_name), path(sjdbGTFfile)
-    
+    tuple path(star_genomeDir), path(riboseq_unmapped_to_contaminants), path(sjdbGTFfile)
+
     output:
-    tuple val(param_set_name), path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.sortedByCoord.out.bam"), path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.sortedByCoord.out.bam.bai"), emit: genome_bam
-    tuple val(param_set_name), path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.toTranscriptome.out.bam"), emit: transcriptome_bam
-    tuple val(param_set_name), path("${riboseq_unmapped_to_contaminants.simpleName}.SJ.out.tab"), emit: sj_tab
-    tuple val(param_set_name), path("${riboseq_unmapped_to_contaminants.simpleName}.Log.final.out"), emit: log_final_out
-    tuple val(param_set_name), path("${riboseq_unmapped_to_contaminants.simpleName}.Log.out"), emit: log_out
-    tuple val(param_set_name), path("${riboseq_unmapped_to_contaminants.simpleName}.Signal.Unique.str1.out.bg"), emit: bedGraph_Unique
-    tuple val(param_set_name), path("${riboseq_unmapped_to_contaminants.simpleName}.Signal.UniqueMultiple.str1.out.bg"), emit: bedGraph_UniqueMultiple
-    
+    tuple path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.sortedByCoord.out.bam"), path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.sortedByCoord.out.bam.bai"), emit: genome_bam
+    path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.toTranscriptome.out.bam"), emit: transcriptome_bam
+    path("${riboseq_unmapped_to_contaminants.simpleName}.SJ.out.tab"), emit: sj_tab
+    path("${riboseq_unmapped_to_contaminants.simpleName}.Log.final.out"), emit: log_final_out
+    path("${riboseq_unmapped_to_contaminants.simpleName}.Log.out"), emit: log_out
+    path("${riboseq_unmapped_to_contaminants.simpleName}.Signal.Unique.str1.out.bg"), emit: bedGraph_Unique
+    path("${riboseq_unmapped_to_contaminants.simpleName}.Signal.UniqueMultiple.str1.out.bg"), emit: bedGraph_UniqueMultiple
+
     script:
     """
     STAR --runThreadN ${task.cpus} \\
@@ -79,26 +80,26 @@ process star_riboseq {
     """
 }
 
-//TO DO: Fix the --samples argument so that it takes in sample JSON file
 process generate_ribotie_yml {
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/prepare_ribotie/${param_set_name}/${mode}"
+    storeDir "nextflow_results/prepare_ribotie/mid_stringency/${mode}"
 
     input:
-    tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), val(mode), path(ref_genome_fasta)
+    tuple path(gtf_path), path(transcriptome_bams), val(mode), path(ref_genome_fasta), path(labels_csv)
+
     output:
-    tuple val(param_set_name), val(mode), path("RiboTIE.yml")
+    tuple val(mode), path("RiboTIE.yml")
 
     script:
     """
     generate_ribotie_yml.py \\
     --gtf $gtf_path \\
     --fa $ref_genome_fasta \\
-    --bam-glob "*.bam" \\
+    --bams ${transcriptome_bams.join(' ')} \\
     --h5 ribotie_res.h5 \\
     --out-prefix ribotie_res \\
-    --samples "Unstim:merged_astro_A,merged_astro_B" "Stim:merged_astro_C,Astro_D" \\
+    --labels $labels_csv \\
     --mode $mode \\
     -o RiboTIE.yml
     """
@@ -107,13 +108,13 @@ process generate_ribotie_yml {
 process generate_ribotie_db {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/prepare_ribotie/${param_set_name}/${mode}"
+    storeDir "nextflow_results/prepare_ribotie/mid_stringency/${mode}"
 
     input:
-    tuple val(param_set_name), path(gtf_path), path(transcriptome_bam), val(mode), path(ribotie_yml), path(ref_genome_fasta)
-    
+    tuple path(gtf_path), path(transcriptome_bam), val(mode), path(ribotie_yml), path(ref_genome_fasta)
+
     output:
-    tuple val(param_set_name), path("${gtf_path.baseName}.h5"), path("ribotie_res.h5"), val(mode)
+    tuple path("${gtf_path.baseName}.h5"), path("ribotie_res.h5"), val(mode)
 
     script:
     """
@@ -125,19 +126,19 @@ process generate_ribotie_db {
 process merge_bg_and_convert_to_bw {
     module "StdEnv/2023:bedtools/2.31.0:kent_tools/486"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/riboseq/${param_set_name}"
-    
+    storeDir "nextflow_results/align/riboseq/mid_stringency"
+
     input:
-    tuple val(param_set_name), path(bedgraph_files), path(chrom_sizes)
+    tuple path(bedgraph_files), path(chrom_sizes)
 
     output:
     path("merged_riboseq.bw")
-    
+
     script:
     """
     # Merge BedGraphs
     bedtools unionbedg -i ${bedgraph_files.join(' ')} -filler 0 | awk '{sum=0; for(i=4; i<=NF; i++) sum+=\$i; print \$1, \$2, \$3, sum}' OFS='\\t' > merged.bedgraph
-    
+
     # Convert merged BedGraph to bigWig
     sort -k1,1 -k2,2n merged.bedgraph > merged_sorted.bedgraph
     bedGraphToBigWig merged_sorted.bedgraph ${chrom_sizes} merged_riboseq.bw
@@ -154,15 +155,16 @@ workflow PREPARE_RIBOTIE {
     ref_genome_fasta
     chrom_sizes
     chromAlias
+    stimulation_labels
 
     main:
 
-    // Format ORFanage GTF for use with RiboTIE 
+    // Format ORFanage GTF for use with RiboTIE
     orfanage_gtf
-        .join(final_classification)
+        .combine(final_classification)
         .combine(annotation_gtf)
         | format_gtf_for_ribotie
-    
+
     orfanage_numbered_exons_gtf = format_gtf_for_ribotie.out
 
     // Align Ribo-seq reads to transcriptome
@@ -176,24 +178,25 @@ workflow PREPARE_RIBOTIE {
 
     // Merge all bedGraph files generated by STAR and convert to bigWig
     star_riboseq.out.bedGraph_Unique
-        .groupTuple()
+        .collect()
         .combine(rename_chromosomes.out)
         | merge_bg_and_convert_to_bw
 
     // Generate the yml file that contains RiboTIE input arguments
     // For now only run on the "merged" mode
     orfanage_numbered_exons_gtf
-        .join(star_riboseq.out.transcriptome_bam.groupTuple())
+        .combine(star_riboseq.out.transcriptome_bam.collect())
         .combine(channel.of("merged"))
         .combine(ref_genome_fasta)
+        .combine(stimulation_labels)
+        .view()
         | generate_ribotie_yml
 
-    // Generate RiboTIE h5 databse
+    // Generate RiboTIE h5 database
     orfanage_numbered_exons_gtf
-        .join(star_riboseq.out.transcriptome_bam.groupTuple())
-        .cross(generate_ribotie_yml.out)
+        .combine(star_riboseq.out.transcriptome_bam.collect())
+        .combine(generate_ribotie_yml.out)
         .combine(ref_genome_fasta)
-        .map { v -> tuple(v[0][0], v[0][1], v[0][2], v[1][1], v[1][2], v[2]) }
         | generate_ribotie_db
 
     emit:

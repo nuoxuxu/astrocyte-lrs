@@ -27,18 +27,17 @@ workflow {
     SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name)
     FILTER_BY_EXPRESSION(RUN_OARFISH.out.oarfish_quant, SQANTI.out.filtered_classification, SQANTI.out.filtered_gtf, SQANTI.out.sqanti_corrected_fasta, annotation_gtf)
     RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, annotation_gtf)
-    PREPARE_RIBOTIE(FILTER_BY_EXPRESSION.out.final_transcripts_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias)
+    PREPARE_RIBOTIE(FILTER_BY_EXPRESSION.out.final_transcripts_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias, channel.fromPath(params.stimulation_labels))
 
     PREPARE_RIBOTIE.out.ribotie_db
         .toList()
         .map { results ->
-            def outputs = results.collect { param_name, gtf_h5, ribotie_h5, mode ->
+            def outputs = results.collect { gtf_h5, ribotie_h5, mode ->
                 [
-                    param_set_name: param_name,
-                    gtf_h5: "nextflow_results/prepare_ribotie/${param_name}/${mode}/${gtf_h5.name}",
-                    ribotie_h5: "nextflow_results/prepare_ribotie/${param_name}/${mode}/${ribotie_h5.name}",
+                    gtf_h5: "nextflow_results/prepare_ribotie/mid_stringency/${mode}/${gtf_h5.name}",
+                    ribotie_h5: "nextflow_results/prepare_ribotie/mid_stringency/${mode}/${ribotie_h5.name}",
                     mode: "${mode}",
-                    ribotie_yml: "nextflow_results/prepare_ribotie/${param_name}/${mode}/RiboTIE.yml"
+                    ribotie_yml: "nextflow_results/prepare_ribotie/mid_stringency/${mode}/RiboTIE.yml"
                 ]
             }
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
@@ -48,11 +47,9 @@ workflow {
     PREPARE_RIBOTIE.out.ribotie_db
         .toList()
         .map { results ->
-            def outputs = results.collect { param_name, _gtf_h5, _ribotie_h5, mode ->
-                def base_dir = "nextflow_results/ribotie/${param_name}/${mode}"
-                def entry = [
-                    param_set_name: param_name,
-                ]
+            def outputs = results.collect { _gtf_h5, _ribotie_h5, mode ->
+                def base_dir = "nextflow_results/ribotie/mid_stringency/${mode}"
+                def entry = [:]
                 if (mode == "merged") {
                     entry += [
                         ribotie_merged_gtf: "${base_dir}/ribotie_res_merged.gtf",
@@ -81,29 +78,24 @@ workflow {
         .collectFile(name: 'ribotie_training_outputs.json', storeDir: 'nextflow_results/manifests')
 
     FILTER_BY_EXPRESSION.out.final_expression
-        .join(FILTER_BY_EXPRESSION.out.final_fasta)
-        .join(FILTER_BY_EXPRESSION.out.final_classification)
-        .join(RUN_ORFANAGE.out.orfanage_gtf)
-        .join(RUN_ORFANAGE.out.orfanage_proteins)
-        .toList()
-        .map { results ->
-            def outputs = results.collect { param_name, _final_expression, _final_fasta, _final_classification, _orfanage_gtf, _orfanage_proteins ->
-                [
-                    param_set_name: param_name,
-                    final_expression: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_expression.parquet",
-                    final_fasta: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_transcripts.fasta",
-                    final_classification: "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_name}/final_classification.parquet",
-                    orfanage_gtf: "nextflow_results/orf_prediction/orfanage/${param_name}/orfanage.gtf",
-                    orfanage_proteins: "nextflow_results/orf_prediction/orfanage/${param_name}/orfanage_proteins.fasta",
-                ]
-            }
-            groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
+        .combine(FILTER_BY_EXPRESSION.out.final_fasta)
+        .combine(FILTER_BY_EXPRESSION.out.final_classification)
+        .combine(RUN_ORFANAGE.out.orfanage_gtf)
+        .combine(RUN_ORFANAGE.out.orfanage_proteins)
+        .map { _expr, _fasta, _cls, _orf_gtf, _orf_prot ->
+            groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([[
+                final_expression: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_expression.parquet",
+                final_fasta: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_transcripts.fasta",
+                final_classification: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_classification.parquet",
+                orfanage_gtf: "nextflow_results/orf_prediction/orfanage/mid_stringency/orfanage.gtf",
+                orfanage_proteins: "nextflow_results/orf_prediction/orfanage/mid_stringency/orfanage_proteins.fasta",
+            ]]))
         }
         .collectFile(name: 'main_pipeline_outputs.json', storeDir: 'nextflow_results/manifests')
-    
+
     // reads = PREPARE_RIBOTIE.out.transcriptome_bam
     //     .map{
-    //         _param_set_name, bam ->
+    //         bam ->
     //         def meta = [:]
     //         meta.id = bam.name.minus("_Unmapped.Aligned.toTranscriptome.out.bam")
     //         [ meta, bam ]
@@ -111,8 +103,6 @@ workflow {
     // ch_samplesheet = channel.value(file("data/samplesheet.csv", checkIfExists: true))
 
     // transcript_fasta = FILTER_BY_EXPRESSION.out.final_fasta
-    //     .filter{ param_set_name, _final_fasta -> param_set_name == "mid_stringency" }
-    //     .map{ _param_set_name, final_fasta -> final_fasta }
 
     // ref_genome_fasta
     //     .combine(transcript_fasta)
@@ -123,7 +113,7 @@ workflow {
     //     reads,
     //     SALMON_INDEX.out,
     //     transcript_fasta,
-    //     FILTER_BY_EXPRESSION.out.final_transcripts_gtf.filter{ param_set_name, _final_transcripts_gtf -> param_set_name == "mid_stringency" },
+    //     FILTER_BY_EXPRESSION.out.final_transcripts_gtf,
     //     "gene_id",
     //     null,
     //     "salmon",

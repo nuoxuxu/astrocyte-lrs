@@ -1,10 +1,10 @@
 process IsoseqsSwitchList {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${param_set_name}"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/mid_stringency"
 
     input:
-    tuple val(param_set_name), path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf)
+    tuple path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf)
 
     output:
     path("IsoformSwitchAnalyzeR.rds")
@@ -25,13 +25,13 @@ process run_cpat {
     module "python:gcc:arrow/19.0.1:rust:r/4.4.0"
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/${param_set_name}"
-    
+    storeDir "nextflow_results/ribotie/mid_stringency"
+
     input:
     path(Human_coding_transcripts_CDS)
     path(Human_noncoding_transcripts_RNA)
     path(Human_logitModel)
-    tuple val(param_set_name), path(final_fasta)
+    path(final_fasta)
 
     output:
     path("CPAT.ORF_prob.tsv"), emit: ORF_prob_tsv
@@ -58,15 +58,15 @@ process run_cpat {
 process pfam_scan {
     conda "/scratch/nxu/astrocytes/env"
     label "long_slurm_job"
-    storeDir "nextflow_results/quality/${param_set_name}"
+    storeDir "nextflow_results/quality/mid_stringency"
 
     input:
-    tuple val(param_set_name), path(translation_fasta)
+    path(translation_fasta)
     path(pfamdb)
-    
+
     output:
-    tuple val(param_set_name), path("pfam_scan_results.csv")
-    
+    path("pfam_scan_results.csv")
+
     script:
     """
     pfam_scan.py \\
@@ -80,13 +80,13 @@ process pfam_scan {
 process convert_pfam_scan_results {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality/${param_set_name}"
+    storeDir "nextflow_results/quality/mid_stringency"
 
     input:
-    tuple val(param_set_name), path(pfam_scan_results)
+    path(pfam_scan_results)
 
     output:
-    tuple val(param_set_name), path("pfam_scan_results_modified.txt")
+    path("pfam_scan_results_modified.txt")
 
     script:
     """
@@ -109,12 +109,12 @@ workflow ISOFORMSWITCH {
     Human_logitModel
 
     main:
-    
+
     final_expression
-        .join(orfanage_gtf)
-        .join(final_classification)
+        .combine(orfanage_gtf)
+        .combine(final_classification)
         .combine(primer_to_sample)
-        .join(final_fasta)
+        .combine(final_fasta)
         .combine(annotation_gtf)
     | IsoseqsSwitchList
 

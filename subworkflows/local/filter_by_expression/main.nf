@@ -1,16 +1,16 @@
 process filter_by_expression {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
+    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency"
 
     input:
-    tuple path(oarfish_quant_files), path(filtered_classification), path(filtered_gtf), path(corrected_fasta), val(param_set_name), val(min_reads), val(min_n_sample)    
+    tuple path(oarfish_quant_files), path(filtered_classification), path(filtered_gtf), path(corrected_fasta), val(min_reads), val(min_n_sample)
 
     output:
-    tuple val(param_set_name), path("final_classification.parquet"), emit: final_classification
-    tuple val(param_set_name), path("final_transcripts.gtf"), emit: final_transcripts_gtf
-    tuple val(param_set_name), path("final_expression.parquet"), emit: final_expression
-    tuple val(param_set_name), path("final_transcripts.fasta"), emit: final_fasta
+    path("final_classification.parquet"), emit: final_classification
+    path("final_transcripts.gtf"), emit: final_transcripts_gtf
+    path("final_expression.parquet"), emit: final_expression
+    path("final_transcripts.fasta"), emit: final_fasta
 
     script:
     """
@@ -24,19 +24,19 @@ process filter_by_expression {
 process GffCompare {
     module "StdEnv/2023:gffcompare/0.12.6"
     label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/${param_set_name}"
+    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency"
 
     input:
     path annotation_gtf
-    tuple val(param_set_name), path(final_transcripts_gtf)
+    path final_transcripts_gtf
 
     output:
-    tuple val(param_set_name), path("gffcmp.annotated.gtf"), emit: gffcmp_annotated_sgtf
-    tuple val(param_set_name), path("gffcmp.loci"), emit: gffcmp_loci
-    tuple val(param_set_name), path("gffcmp.stats"), emit: gffcmp_stats
-    tuple val(param_set_name), path("gffcmp.tracking"), emit: gffcmp_tracking
-    tuple val(param_set_name), path("gffcmp.final_transcripts.gtf.refmap"), emit: refmap
-    tuple val(param_set_name), path("gffcmp.final_transcripts.gtf.tmap"), emit: tmap
+    path("gffcmp.annotated.gtf"), emit: gffcmp_annotated_sgtf
+    path("gffcmp.loci"), emit: gffcmp_loci
+    path("gffcmp.stats"), emit: gffcmp_stats
+    path("gffcmp.tracking"), emit: gffcmp_tracking
+    path("gffcmp.final_transcripts.gtf.refmap"), emit: refmap
+    path("gffcmp.final_transcripts.gtf.tmap"), emit: tmap
 
     script:
     """
@@ -50,18 +50,18 @@ process transcript_visualization {
     storeDir "nextflow_results/figures"
 
     input:
-    tuple val(param_set_name), path(final_classification), path(final_transcripts_gtf), path(final_expression)
-    
+    tuple path(final_classification), path(final_transcripts_gtf), path(final_expression)
+
     output:
-    path("${param_set_name}_transcripts.pdf")
+    path("mid_stringency_transcripts.pdf")
 
     script:
     """
     transcript_classification.R \\
         --classification $final_classification \\
         --expression $final_expression \\
-        --output "${param_set_name}_transcripts.pdf"
-    """    
+        --output "mid_stringency_transcripts.pdf"
+    """
 }
 
 workflow FILTER_BY_EXPRESSION {
@@ -80,15 +80,15 @@ workflow FILTER_BY_EXPRESSION {
         .combine(filtered_gtf)
         .combine(sqanti_corrected_fasta)
         .map { oarfish, cls, gtf, fasta ->
-            tuple(oarfish, cls, gtf, fasta, "mid_stringency", params.min_reads, params.min_n_sample)
+            tuple(oarfish, cls, gtf, fasta, params.min_reads, params.min_n_sample)
         }
     filter_by_expression(filter_by_expression_input_ch)
-    
+
     GffCompare(annotation_gtf, filter_by_expression.out.final_transcripts_gtf)
 
     filter_by_expression.out.final_classification
-        .join(filter_by_expression.out.final_transcripts_gtf)
-        .join(filter_by_expression.out.final_expression)
+        .combine(filter_by_expression.out.final_transcripts_gtf)
+        .combine(filter_by_expression.out.final_expression)
         | transcript_visualization
 
     emit:

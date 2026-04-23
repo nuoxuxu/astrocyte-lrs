@@ -1,13 +1,13 @@
 process phylocsfpp {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality/${param_set_name}"
+    storeDir "nextflow_results/quality/mid_stringency"
 
     input:
-    tuple val(param_set_name), val(condition), path(ribotie_output_gtf), path(phyloCSF_db)
+    tuple val(condition), path(ribotie_output_gtf), path(phyloCSF_db)
 
     output:
-    tuple val(param_set_name), val(condition), path("${ribotie_output_gtf.baseName}.PhyloCSF++.gtf")
+    tuple val(condition), path("${ribotie_output_gtf.baseName}.PhyloCSF++.gtf")
 
     script:
     """
@@ -24,16 +24,16 @@ workflow GET_QUALITY_METRICS {
     channel.fromPath(ribotie_training_outputs)
         .splitJson()
         .map { entry ->
-            tuple(entry.param_set_name, "unstim", file(entry.ribotie_unstim_novel_gtf))
+            tuple("unstim", file(entry.ribotie_unstim_novel_gtf))
         }
         .set { unstim_input_ch }
 
     channel.fromPath(ribotie_training_outputs)
         .splitJson()
         .map { entry ->
-            tuple(entry.param_set_name, "stim", file(entry.ribotie_stim_novel_gtf))
+            tuple("stim", file(entry.ribotie_stim_novel_gtf))
         }
-        .set { stim_input_ch }        
+        .set { stim_input_ch }
 
     unstim_input_ch
         .mix(stim_input_ch)

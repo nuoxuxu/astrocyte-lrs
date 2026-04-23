@@ -27,24 +27,14 @@ workflow RIBOTIE_POSTANALYSIS {
     final_expression
 
     main:
-    // Parse ribotie JSON manifest to get CSV paths per param_set
     channel.fromPath(ribotie_training_outputs)
         .splitJson()
         .toList()
         .set { ribotie_entries }
 
-    // Convert upstream channels to value channels (lists) for multiple access
-    orfanage_gtf.toList().set { orfanage_list }
-    final_expression.toList().set { expression_list }
-
-    // Extract ribotie merged CSV for mid_stringency
     mid_ribotie_merged = ribotie_entries.map { entries ->
-        file(entries.find { entry -> entry.param_set_name == 'mid_stringency' }.ribotie_merged_csv)
+        file(entries[0].ribotie_merged_csv)
     }
 
-    // Extract orfanage GTF and expression for mid_stringency
-    mid_orfanage = orfanage_list.map { list -> list.find { item -> item[0] == 'mid_stringency' }[1] }
-    mid_expression = expression_list.map { list -> list.find { item -> item[0] == 'mid_stringency' }[1] }
-
-    plot_ribotie_figures(mid_ribotie_merged, mid_orfanage, mid_expression)
+    plot_ribotie_figures(mid_ribotie_merged, orfanage_gtf, final_expression)
 }
