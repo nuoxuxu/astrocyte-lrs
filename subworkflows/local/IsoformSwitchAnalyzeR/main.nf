@@ -55,10 +55,48 @@ process run_cpat {
     """
 }
 
+process split_FASTA {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+
+    input:
+    path(translation_fasta)
+
+    output:
+    path("chunk_*.fa")
+
+    script:
+    """
+    python3 - << 'EOF'
+    seqs = []
+    header, seq = None, []
+    with open("${translation_fasta}") as f:
+        for line in f:
+            if line.startswith(">"):
+                if header:
+                    seqs.append((header, "".join(seq)))
+                header, seq = line, []
+            else:
+                seq.append(line)
+    if header:
+        seqs.append((header, "".join(seq)))
+
+    n = min(int("${task.cpus}") // 8, len(seqs))
+    chunk_size = max(1, -(-len(seqs) // n))
+    for i in range(n):
+        chunk = seqs[i * chunk_size:(i + 1) * chunk_size]
+        if not chunk:
+            break
+        with open(f"chunk_{i+1:04d}.fa", "w") as out:
+            for h, s in chunk:
+                out.write(h + s)
+    EOF
+    """
+}
+
 process pfam_scan {
     conda "/scratch/nxu/astrocytes/env"
-    label "long_slurm_job"
-    storeDir "nextflow_results/quality/mid_stringency"
+    label "mid_slurm_job"
 
     input:
     path(translation_fasta)
@@ -70,10 +108,31 @@ process pfam_scan {
     script:
     """
     pfam_scan.py \\
+        -cpu 8 \\
         -out pfam_scan_results.csv \\
         -outfmt csv \\
         $translation_fasta \\
         $pfamdb
+    """
+}
+
+process merge_pfam_results {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality/mid_stringency"
+
+    input:
+    path(pfam_results)
+
+    output:
+    path("pfam_scan_results.csv")
+
+    script:
+    """
+    head -1 \$(ls *.csv | head -1) > pfam_scan_results.csv
+    for f in *.csv; do
+        tail -n +2 "\$f" >> pfam_scan_results.csv
+    done
     """
 }
 
@@ -119,5 +178,8 @@ workflow ISOFORMSWITCH {
     | IsoseqsSwitchList
 
     run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
-    pfam_scan(translation_fasta, pfamdb)
+
+    split_FASTA(translation_fasta)
+    pfam_scan(split_FASTA.out.flatten(), pfamdb)
+    merge_pfam_results(pfam_scan.out.collect())
 }
