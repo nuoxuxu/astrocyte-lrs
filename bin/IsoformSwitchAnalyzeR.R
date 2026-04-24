@@ -68,7 +68,7 @@ geneCountMatrix <- extractGeneExpression(
 )
 
 geneDDS <- DESeqDataSetFromMatrix(
-    countData = round(geneCountMatrix[, -1]),
+    countData = round(geneCountMatrix[, -(1:2)]),
     colData = IsoseqsSwitchList$designMatrix,
     design = ~ condition
 )
@@ -82,6 +82,8 @@ geneDE$gene_q_value[is.na(geneDE$gene_q_value)] <- 1
 
 # Isoform-level differential expression via DESeq2
 isoCountMatrix <- IsoseqsSwitchList$isoformCountMatrix
+rownames(isoCountMatrix) <- isoCountMatrix$isoform_id
+isoCountMatrix <- isoCountMatrix[, -1]
 
 isoDDS <- DESeqDataSetFromMatrix(
     countData = round(isoCountMatrix),
