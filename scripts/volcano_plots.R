@@ -1,0 +1,118 @@
+#!/usr/bin/env Rscript
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+
+obj <- readRDS("nextflow_results/IsoformSwitchAnalyzeR/mid_stringency/IsoformSwitchAnalyzeR.rds")
+
+feat <- obj$isoformFeatures
+
+ALPHA <- 0.05
+LFC_CUTOFF <- 1.0
+DIF_CUTOFF <- 0.1
+
+# ── Gene-level volcano (DGE) ─────────────────────────────────────────────────
+
+gene_df <- feat %>%
+    dplyr::select(gene_id, gene_name, gene_log2_fold_change, gene_q_value) %>%
+    distinct() %>%
+    mutate(
+        neglog10q = -log10(pmax(gene_q_value, 1e-300)),
+        sig = gene_q_value < ALPHA & abs(gene_log2_fold_change) >= LFC_CUTOFF,
+        direction = case_when(
+            sig & gene_log2_fold_change >  LFC_CUTOFF ~ "Up in Stim",
+            sig & gene_log2_fold_change < -LFC_CUTOFF ~ "Down in Stim",
+            TRUE                                       ~ "NS"
+        ),
+        label = ifelse(sig & !is.na(gene_name), gene_name, NA_character_)
+    )
+
+n_up   <- sum(gene_df$direction == "Up in Stim",   na.rm = TRUE)
+n_down <- sum(gene_df$direction == "Down in Stim",  na.rm = TRUE)
+
+pal <- c("Up in Stim" = "#e41a1c", "Down in Stim" = "#377eb8", "NS" = "grey70")
+
+p_dge <- ggplot(gene_df, aes(x = gene_log2_fold_change, y = neglog10q, colour = direction)) +
+    geom_point(alpha = 0.6, size = 1.2) +
+    geom_vline(xintercept = c(-LFC_CUTOFF, LFC_CUTOFF), linetype = "dashed", colour = "black", linewidth = 0.4) +
+    geom_hline(yintercept = -log10(ALPHA), linetype = "dashed", colour = "black", linewidth = 0.4) +
+    geom_text_repel(
+        aes(label = label),
+        size = 2.5, max.overlaps = 20,
+        min.segment.length = 0.2, box.padding = 0.3,
+        na.rm = TRUE
+    ) +
+    scale_colour_manual(values = pal, name = NULL) +
+    annotate("text", x =  Inf, y = Inf, hjust = 1.1, vjust = 1.5,
+             label = paste0("Up: ", n_up), colour = "#e41a1c", size = 3.5) +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+             label = paste0("Down: ", n_down), colour = "#377eb8", size = 3.5) +
+    labs(
+        title    = "Differential Gene Expression  (Stim vs Unstim)",
+        subtitle = paste0("DESeq2  |  padj < ", ALPHA, "  &  |log2FC| >= ", LFC_CUTOFF),
+        x        = "log2 Fold Change",
+        y        = "-log10(adjusted p-value)"
+    ) +
+    theme_classic(base_size = 12) +
+    theme(legend.position = "bottom")
+
+# ── Isoform-level volcano (DTU) ───────────────────────────────────────────────
+
+iso_df <- feat %>%
+    dplyr::select(isoform_id, gene_name, dIF, isoform_switch_q_value) %>%
+    distinct() %>%
+    mutate(
+        neglog10q = -log10(pmax(isoform_switch_q_value, 1e-300)),
+        sig = isoform_switch_q_value < ALPHA & abs(dIF) >= DIF_CUTOFF,
+        direction = case_when(
+            sig & dIF >  DIF_CUTOFF ~ "Increased in Stim",
+            sig & dIF < -DIF_CUTOFF ~ "Decreased in Stim",
+            TRUE                    ~ "NS"
+        ),
+        label = ifelse(sig & !is.na(gene_name), gene_name, NA_character_)
+    )
+
+n_inc <- sum(iso_df$direction == "Increased in Stim", na.rm = TRUE)
+n_dec <- sum(iso_df$direction == "Decreased in Stim", na.rm = TRUE)
+
+pal2 <- c("Increased in Stim" = "#e41a1c", "Decreased in Stim" = "#377eb8", "NS" = "grey70")
+
+p_dtu <- ggplot(iso_df, aes(x = dIF, y = neglog10q, colour = direction)) +
+    geom_point(alpha = 0.6, size = 1.2) +
+    geom_vline(xintercept = c(-DIF_CUTOFF, DIF_CUTOFF), linetype = "dashed", colour = "black", linewidth = 0.4) +
+    geom_hline(yintercept = -log10(ALPHA), linetype = "dashed", colour = "black", linewidth = 0.4) +
+    geom_text_repel(
+        aes(label = label),
+        size = 2.5, max.overlaps = 20,
+        min.segment.length = 0.2, box.padding = 0.3,
+        na.rm = TRUE
+    ) +
+    scale_colour_manual(values = pal2, name = NULL) +
+    annotate("text", x =  Inf, y = Inf, hjust = 1.1, vjust = 1.5,
+             label = paste0("Increased: ", n_inc), colour = "#e41a1c", size = 3.5) +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+             label = paste0("Decreased: ", n_dec), colour = "#377eb8", size = 3.5) +
+    labs(
+        title    = "Differential Transcript Usage  (Stim vs Unstim)",
+        subtitle = paste0("DEXSeq  |  q < ", ALPHA, "  &  |dIF| >= ", DIF_CUTOFF),
+        x        = "Delta Isoform Fraction (dIF)",
+        y        = "-log10(q-value)"
+    ) +
+    theme_classic(base_size = 12) +
+    theme(legend.position = "bottom")
+
+# ── Save ──────────────────────────────────────────────────────────────────────
+
+ggsave("figures/volcano_DGE.pdf", p_dge, width = 7, height = 6)
+ggsave("figures/volcano_DTU.pdf", p_dtu, width = 7, height = 6)
+
+cat("Saved: figures/volcano_DGE.pdf\n")
+cat("Saved: figures/volcano_DTU.pdf\n")
+
+cat("\nDGE summary (padj <", ALPHA, "& |LFC| >=", LFC_CUTOFF, "):\n")
+cat("  Up in Stim:   ", n_up,   "\n")
+cat("  Down in Stim: ", n_down, "\n")
+
+cat("\nDTU summary (q <", ALPHA, "& |dIF| >=", DIF_CUTOFF, "):\n")
+cat("  Increased in Stim: ", n_inc, "\n")
+cat("  Decreased in Stim: ", n_dec, "\n")
