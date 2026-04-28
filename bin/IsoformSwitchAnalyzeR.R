@@ -126,12 +126,14 @@ classification <- read_parquet(args$final_classification) %>%
         by = 'associated_gene'
     )
 
-IsoseqsSwitchList$isoformFeatures <- IsoseqsSwitchList$isoformFeatures %>% 
+IsoseqsSwitchList$isoformFeatures <- IsoseqsSwitchList$isoformFeatures %>%
+    mutate(isoform_id_base = sub("_\\d+$", "", isoform_id)) %>%
     left_join(
-        dplyr::rename(dplyr::select(classification, c(isoform, gene_name)), isoform_id = isoform),
-        by = 'isoform_id',
-    ) %>% 
-    select(-gene_name.x) %>% 
+        dplyr::rename(dplyr::select(classification, c(isoform, gene_name)), isoform_id_base = isoform),
+        by = 'isoform_id_base',
+    ) %>%
+    select(-isoform_id_base) %>%
+    select(-gene_name.x) %>%
     dplyr::rename(gene_name=gene_name.y)
 
 IsoseqsSwitchList <- analyzeIntronRetention(IsoseqsSwitchList)
