@@ -23,9 +23,16 @@ gene_df <- feat %>%
             sig & gene_log2_fold_change >  LFC_CUTOFF ~ "Up in Stim",
             sig & gene_log2_fold_change < -LFC_CUTOFF ~ "Down in Stim",
             TRUE                                       ~ "NS"
-        ),
-        label = ifelse(sig & !is.na(gene_name), gene_name, NA_character_)
+        )
     )
+
+top_gene_ids <- bind_rows(
+    gene_df %>% filter(direction == "Up in Stim")  %>% slice_max(gene_log2_fold_change, n = 20),
+    gene_df %>% filter(direction == "Down in Stim") %>% slice_min(gene_log2_fold_change, n = 20)
+) %>% pull(gene_id)
+
+gene_df <- gene_df %>%
+    mutate(label = ifelse(gene_id %in% top_gene_ids & !is.na(gene_name), gene_name, NA_character_))
 
 n_up   <- sum(gene_df$direction == "Up in Stim",   na.rm = TRUE)
 n_down <- sum(gene_df$direction == "Down in Stim",  na.rm = TRUE)
@@ -38,7 +45,7 @@ p_dge <- ggplot(gene_df, aes(x = gene_log2_fold_change, y = neglog10q, colour = 
     geom_hline(yintercept = -log10(ALPHA), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_text_repel(
         aes(label = label),
-        size = 2.5, max.overlaps = 20,
+        size = 2.5, max.overlaps = Inf,
         min.segment.length = 0.2, box.padding = 0.3,
         na.rm = TRUE
     ) +
@@ -68,9 +75,16 @@ iso_df <- feat %>%
             sig & dIF >  DIF_CUTOFF ~ "Increased in Stim",
             sig & dIF < -DIF_CUTOFF ~ "Decreased in Stim",
             TRUE                    ~ "NS"
-        ),
-        label = ifelse(sig & !is.na(gene_name), gene_name, NA_character_)
+        )
     )
+
+top_iso_ids <- bind_rows(
+    iso_df %>% filter(direction == "Increased in Stim") %>% slice_max(dIF, n = 20),
+    iso_df %>% filter(direction == "Decreased in Stim") %>% slice_min(dIF, n = 20)
+) %>% pull(isoform_id)
+
+iso_df <- iso_df %>%
+    mutate(label = ifelse(isoform_id %in% top_iso_ids & !is.na(gene_name), gene_name, NA_character_))
 
 n_inc <- sum(iso_df$direction == "Increased in Stim", na.rm = TRUE)
 n_dec <- sum(iso_df$direction == "Decreased in Stim", na.rm = TRUE)
@@ -83,7 +97,7 @@ p_dtu <- ggplot(iso_df, aes(x = dIF, y = neglog10q, colour = direction)) +
     geom_hline(yintercept = -log10(ALPHA), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_text_repel(
         aes(label = label),
-        size = 2.5, max.overlaps = 20,
+        size = 2.5, max.overlaps = Inf,
         min.segment.length = 0.2, box.padding = 0.3,
         na.rm = TRUE
     ) +
