@@ -27,17 +27,17 @@ workflow {
     SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name)
     FILTER_BY_EXPRESSION(RUN_OARFISH.out.oarfish_quant, SQANTI.out.filtered_classification, SQANTI.out.filtered_gtf, SQANTI.out.sqanti_corrected_fasta, annotation_gtf)
     RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, annotation_gtf)
-    PREPARE_RIBOTIE(FILTER_BY_EXPRESSION.out.final_transcripts_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias, channel.fromPath(params.stimulation_labels))
+    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf.filter { it[0] == "orfanage_no_minlen" }.map { it[1] }, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias, channel.fromPath(params.stimulation_labels))
 
     PREPARE_RIBOTIE.out.ribotie_db
         .toList()
         .map { results ->
             def outputs = results.collect { gtf_h5, ribotie_h5, mode ->
                 [
-                    gtf_h5: "nextflow_results/prepare_ribotie/mid_stringency/${mode}/${gtf_h5.name}",
-                    ribotie_h5: "nextflow_results/prepare_ribotie/mid_stringency/${mode}/${ribotie_h5.name}",
+                    gtf_h5: "nextflow_results/prepare_ribotie_no_minlen/mid_stringency/${mode}/${gtf_h5.name}",
+                    ribotie_h5: "nextflow_results/prepare_ribotie_no_minlen/mid_stringency/${mode}/${ribotie_h5.name}",
                     mode: "${mode}",
-                    ribotie_yml: "nextflow_results/prepare_ribotie/mid_stringency/${mode}/RiboTIE.yml"
+                    ribotie_yml: "nextflow_results/prepare_ribotie_no_minlen/mid_stringency/${mode}/RiboTIE.yml"
                 ]
             }
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(outputs))
@@ -80,15 +80,15 @@ workflow {
     FILTER_BY_EXPRESSION.out.final_expression
         .combine(FILTER_BY_EXPRESSION.out.final_fasta)
         .combine(FILTER_BY_EXPRESSION.out.final_classification)
-        .combine(RUN_ORFANAGE.out.orfanage_gtf)
-        .combine(RUN_ORFANAGE.out.orfanage_proteins)
+        .combine(RUN_ORFANAGE.out.orfanage_gtf.filter { it[0] == "orfanage_no_minlen" }.map { it[1] })
+        .combine(RUN_ORFANAGE.out.orfanage_proteins.filter { it[0] == "orfanage_no_minlen" }.map { it[1] })
         .map { _expr, _fasta, _cls, _orf_gtf, _orf_prot ->
             groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([[
                 final_expression: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_expression.parquet",
                 final_fasta: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_transcripts.fasta",
                 final_classification: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_classification.parquet",
-                orfanage_gtf: "nextflow_results/orf_prediction/orfanage/mid_stringency/orfanage.gtf",
-                orfanage_proteins: "nextflow_results/orf_prediction/orfanage/mid_stringency/orfanage_proteins.fasta",
+                orfanage_gtf: "nextflow_results/orf_prediction/orfanage_no_minlen/mid_stringency/orfanage.gtf",
+                orfanage_proteins: "nextflow_results/orf_prediction/orfanage_no_minlen/mid_stringency/orfanage_proteins.fasta",
             ]]))
         }
         .collectFile(name: 'main_pipeline_outputs.json', storeDir: 'nextflow_results/manifests')

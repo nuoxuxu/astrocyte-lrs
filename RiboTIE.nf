@@ -1,7 +1,7 @@
 process RUN_RIBOTIE {
     module "python:gcc:arrow/19.0.1:rust"
     label "mid_slurm_job"
-    storeDir "nextflow_results/ribotie/mid_stringency/${mode}"
+    storeDir "nextflow_results/ribotie_no_minlen/mid_stringency/${mode}"
 
     input:
     tuple path(gtf_h5), path(ribotie_h5), val(mode), path(ribotie_yml)
@@ -25,7 +25,7 @@ process RUN_RIBOTIE {
 process save_to_parquet {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "export/local"
+    storeDir "export/ribotie_no_minlen"
 
     input:
     path(input_gtf)

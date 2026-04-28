@@ -1,7 +1,7 @@
 process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orf_prediction/orfanage/mid_stringency"
+    storeDir "nextflow_results/orf_prediction/orfanage_no_minlen/mid_stringency"
 
     input:
     tuple path(orfanage_gtf), path(final_classification), path(annotation_gtf)
@@ -43,7 +43,7 @@ process rename_chromosomes {
 process star_riboseq {
     module "StdEnv/2023:star/2.7.11b:samtools/1.22.1"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/riboseq/mid_stringency"
+    storeDir "nextflow_results/align/riboseq_no_minlen/mid_stringency"
 
     input:
     tuple path(star_genomeDir), path(riboseq_unmapped_to_contaminants), path(sjdbGTFfile)
@@ -83,7 +83,7 @@ process star_riboseq {
 process generate_ribotie_yml {
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/prepare_ribotie/mid_stringency/${mode}"
+    storeDir "nextflow_results/prepare_ribotie_no_minlen/mid_stringency/${mode}"
 
     input:
     tuple path(gtf_path), path(transcriptome_bams), val(mode), path(ref_genome_fasta), path(labels_csv)
@@ -108,7 +108,7 @@ process generate_ribotie_yml {
 process generate_ribotie_db {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/prepare_ribotie/mid_stringency/${mode}"
+    storeDir "nextflow_results/prepare_ribotie_no_minlen/mid_stringency/${mode}"
 
     input:
     tuple path(gtf_path), path(transcriptome_bam), val(mode), path(ribotie_yml), path(ref_genome_fasta)
@@ -126,7 +126,7 @@ process generate_ribotie_db {
 process merge_bg_and_convert_to_bw {
     module "StdEnv/2023:bedtools/2.31.0:kent_tools/486"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/riboseq/mid_stringency"
+    storeDir "nextflow_results/align/riboseq_no_minlen/mid_stringency"
 
     input:
     tuple path(bedgraph_files), path(chrom_sizes)

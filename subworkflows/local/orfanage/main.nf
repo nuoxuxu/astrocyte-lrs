@@ -9,7 +9,7 @@ process runORFanage {
     path annotation_gtf
 
     output:
-    path("orfanage_with_gene_id.gtf"), emit: orfanage_gtf
+    tuple val("orfanage"), path("orfanage_with_gene_id.gtf"), emit: orfanage_gtf
     path "orfanage.stats"
 
     script:
@@ -43,7 +43,7 @@ process runORFanage_no_minlen {
     path annotation_gtf
 
     output:
-    path("orfanage_with_gene_id.gtf"), emit: orfanage_gtf
+    tuple val("orfanage_no_minlen"), path("orfanage_with_gene_id.gtf"), emit: orfanage_gtf
     path "orfanage.stats"
 
     script:
@@ -68,13 +68,13 @@ process runORFanage_no_minlen {
 process addNoncodingTx {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orf_prediction/orfanage/mid_stringency"
+    storeDir "nextflow_results/orf_prediction/${label}/mid_stringency"
 
     input:
-    tuple path(orfanage_gtf), path(final_transcripts_gtf)
+    tuple val(label), path(orfanage_gtf), path(final_transcripts_gtf)
 
     output:
-    path("complete_orfanage.gtf")
+    tuple val(label), path("complete_orfanage.gtf")
 
     script:
     """
@@ -88,14 +88,14 @@ process addNoncodingTx {
 process fixORFanageFormat {
     label "short_slurm_job"
     container "quay.io/biocontainers/agat:1.4.2--pl5321hdfd78af_0"
-    storeDir "nextflow_results/orf_prediction/orfanage/mid_stringency"
+    storeDir "nextflow_results/orf_prediction/${label}/mid_stringency"
 
     input:
     path ref_genome_fasta
-    path complete_orfanage_gtf
+    tuple val(label), path(complete_orfanage_gtf)
 
     output:
-    path("agat_output.gtf")
+    tuple val(label), path("agat_output.gtf")
 
     script:
     """
@@ -108,13 +108,13 @@ process fixORFanageFormat {
 process restoreAgatRemovedTx {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orf_prediction/orfanage/mid_stringency"
+    storeDir "nextflow_results/orf_prediction/${label}/mid_stringency"
 
     input:
-    tuple path(complete_orfanage_gtf), path(agat_output_gtf)
+    tuple val(label), path(complete_orfanage_gtf), path(agat_output_gtf)
 
     output:
-    path("orfanage.gtf")
+    tuple val(label), path("orfanage.gtf")
 
     script:
     """
@@ -129,14 +129,14 @@ process restoreAgatRemovedTx {
 process translateORFs {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orf_prediction/orfanage/mid_stringency"
+    storeDir "nextflow_results/orf_prediction/${label}/mid_stringency"
 
     input:
     path ref_genome_fasta
-    path orfanage_gtf
+    tuple val(label), path(orfanage_gtf)
 
     output:
-    path("orfanage_proteins.fasta")
+    tuple val(label), path("orfanage_proteins.fasta")
 
     script:
     """
@@ -157,13 +157,14 @@ workflow RUN_ORFANAGE {
     runORFanage_no_minlen(ref_genome_fasta, final_transcripts_gtf, annotation_gtf)
 
     runORFanage.out.orfanage_gtf
+        .mix(runORFanage_no_minlen.out.orfanage_gtf)
         .combine(final_transcripts_gtf)
         | addNoncodingTx
 
     fixORFanageFormat(ref_genome_fasta, addNoncodingTx.out)
 
     addNoncodingTx.out
-        .combine(fixORFanageFormat.out)
+        .join(fixORFanageFormat.out)
         | restoreAgatRemovedTx
 
     translateORFs(ref_genome_fasta, restoreAgatRemovedTx.out)
