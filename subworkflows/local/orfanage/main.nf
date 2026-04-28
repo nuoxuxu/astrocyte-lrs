@@ -32,6 +32,39 @@ process runORFanage {
     """
 }
 
+process runORFanage_no_minlen {
+    label "short_slurm_job"
+    conda "/scratch/nxu/astrocytes/env"
+    storeDir "nextflow_results/orf_prediction/orfanage_no_minlen/mid_stringency"
+
+    input:
+    path ref_genome_fasta
+    path final_sample_gtf
+    path annotation_gtf
+
+    output:
+    path("orfanage_with_gene_id.gtf"), emit: orfanage_gtf
+    path "orfanage.stats"
+
+    script:
+    """
+    orfanage \\
+        --reference $ref_genome_fasta \\
+        --query $final_sample_gtf \\
+        --output orfanage_without_gene_id.gtf \\
+        --threads $task.cpus \\
+        --stats orfanage.stats \\
+        $annotation_gtf
+
+    gffread \\
+        -g $ref_genome_fasta \\
+        --adj-stop \\
+        -T -F -J -C \\
+        -o orfanage_with_gene_id.gtf \\
+        orfanage_without_gene_id.gtf
+    """
+}
+
 process addNoncodingTx {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
@@ -121,6 +154,7 @@ workflow RUN_ORFANAGE {
 
     main:
     runORFanage(ref_genome_fasta, final_transcripts_gtf, annotation_gtf)
+    runORFanage_no_minlen(ref_genome_fasta, final_transcripts_gtf, annotation_gtf)
 
     runORFanage.out.orfanage_gtf
         .combine(final_transcripts_gtf)
