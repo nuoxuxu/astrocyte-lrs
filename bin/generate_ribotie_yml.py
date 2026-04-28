@@ -8,7 +8,7 @@ import re
 import yaml
 
 
-BAM_SAMPLE_RE = re.compile(r'_([A-Za-z])_Unmapped')
+BAM_SAMPLE_RE = re.compile(r'_([A-Za-z][A-Za-z0-9]*)_Unmapped')
 
 
 def extract_sample_letter(bam_path):
