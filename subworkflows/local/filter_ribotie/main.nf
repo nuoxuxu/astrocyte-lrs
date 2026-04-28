@@ -4,11 +4,14 @@ process FILTER_RIBOTIE_RESULTS {
     storeDir "nextflow_results/ribotie/mid_stringency/filtered"
 
     input:
-    tuple path(input_gtf), path(input_fasta), path(input_expression)
+    tuple path(input_gtf), path(input_fasta), path(input_expression), path(input_classification)
     path ribotie_cpm1_3sample
 
     output:
-    tuple path("filtered_RiboTIE.gtf"), path("filtered_RiboTIE.fasta"), path("ribotie_filtered_final_expression.parquet")
+    path "filtered_RiboTIE.gtf",                              emit: filtered_RiboTIE_gtf
+    path "filtered_RiboTIE.fasta",                            emit: filtered_RiboTIE_fasta
+    path "ribotie_filtered_final_expression.parquet",         emit: filtered_RiboTIE_expression
+    path "ribotie_filtered_final_classification.parquet",     emit: filtered_RiboTIE_classification
 
     script:
     """
@@ -18,9 +21,31 @@ process FILTER_RIBOTIE_RESULTS {
         --ribotie_cpm1_3sample $ribotie_cpm1_3sample \\
         --input_fasta $input_fasta \\
         --input_expression $input_expression \\
+        --input_classification $input_classification \\
         --output_gtf filtered_RiboTIE.gtf \\
         --output_fasta filtered_RiboTIE.fasta \\
-        --output_expression ribotie_filtered_final_expression.parquet
+        --output_expression ribotie_filtered_final_expression.parquet \\
+        --output_classification ribotie_filtered_final_classification.parquet
+    """
+}
+
+process translateORFs {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/ribotie/mid_stringency/filtered"
+
+    input:
+    path ref_genome_fasta
+    path filtered_RiboTIE_gtf
+
+    output:
+    path("filtered_RiboTIE_proteins.fasta"), emit: filtered_RiboTIE_proteins
+
+    script:
+    """
+    gffread -y filtered_RiboTIE_proteins.fasta \\
+        -g $ref_genome_fasta \\
+        $filtered_RiboTIE_gtf
     """
 }
 
@@ -30,14 +55,23 @@ workflow FILTER_RIBOTIE {
     ribotie_cpm1_3sample
     final_fasta
     final_expression
+    final_classification
+    ref_genome_fasta
 
     main:
     ribotie_filtered_gtf
         .combine(final_fasta)
         .combine(final_expression)
+        .combine(final_classification)
         .set { joined }
     FILTER_RIBOTIE_RESULTS(joined, ribotie_cpm1_3sample)
 
+    translateORFs(ref_genome_fasta, FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_gtf)
+
     emit:
-    filtered = FILTER_RIBOTIE_RESULTS.out
+    filtered_RiboTIE_gtf            = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_gtf
+    filtered_RiboTIE_fasta          = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_fasta
+    filtered_RiboTIE_expression     = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_expression
+    filtered_RiboTIE_classification = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_classification
+    filtered_RiboTIE_proteins       = translateORFs.out.filtered_RiboTIE_proteins
 }

@@ -4,7 +4,7 @@ process IsoseqsSwitchList {
     storeDir "nextflow_results/IsoformSwitchAnalyzeR/mid_stringency"
 
     input:
-    tuple path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf)
+    tuple path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf), path(cpat_results), path(pfam_results)
 
     output:
     path("IsoformSwitchAnalyzeR.rds")
@@ -17,7 +17,9 @@ process IsoseqsSwitchList {
         --final_fasta $final_fasta \\
         --orfanage_gtf $orfanage_gtf \\
         --annotation_gtf $annotation_gtf \\
-        --final_classification $final_classification
+        --final_classification $final_classification \\
+        --cpat_results $cpat_results \\
+        --pfam_results $pfam_results \\
     """
 }
 
@@ -56,7 +58,6 @@ process run_cpat {
 }
 
 process split_FASTA {
-    conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
 
     input:
@@ -81,7 +82,7 @@ process split_FASTA {
     if header:
         seqs.append((header, "".join(seq)))
 
-    n = min(int("${task.cpus}") // 8, len(seqs))
+    n = max(1, min(int("${task.cpus}") // 8, len(seqs)))
     chunk_size = max(1, -(-len(seqs) // n))
     for i in range(n):
         chunk = seqs[i * chunk_size:(i + 1) * chunk_size]
@@ -95,7 +96,7 @@ process split_FASTA {
 }
 
 process pfam_scan {
-    conda "/scratch/nxu/astrocytes/env"
+    module "hmmer/3.4"
     label "mid_slurm_job"
 
     input:
@@ -116,8 +117,42 @@ process pfam_scan {
     """
 }
 
-process merge_pfam_results {
+process convert_cpat_format {
     conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/ribotie/mid_stringency"
+
+    input:
+    path(orf_prob_best_tsv)
+
+    output:
+    path("cpat_results.txt")
+
+    script:
+    """
+    convert_cpat_format.py $orf_prob_best_tsv -o cpat_results.txt
+    """
+}
+
+process filter_cpat_results {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/ribotie/mid_stringency/filtered"
+
+    input:
+    path(cpat_results)
+    path(ribotie_fasta)
+
+    output:
+    path("cpat_results_filtered.txt")
+
+    script:
+    """
+    filter_cpat_results.py $cpat_results $ribotie_fasta -o cpat_results_filtered.txt
+    """
+}
+
+process merge_pfam_results {
     label "short_slurm_job"
     storeDir "nextflow_results/quality/mid_stringency"
 
@@ -149,7 +184,25 @@ process convert_pfam_scan_results {
 
     script:
     """
-    convert_pfam_csv_to_txt.py $pfam_scan_results > pfam_scan_results_modified.txt
+    convert_pfam_csv_to_txt.py $pfam_scan_results pfam_scan_results_modified.txt
+    """
+}
+
+process PlotIsoformConsequences {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/mid_stringency"
+
+    input:
+    path(rds)
+
+    output:
+    path("splicing_consequences.pdf")
+    path("switch_consequences.pdf")
+
+    script:
+    """
+    plot_isoform_consequences.R --rds $rds
     """
 }
 
@@ -169,17 +222,24 @@ workflow ISOFORMSWITCH {
 
     main:
 
+    run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
+    convert_cpat_format(run_cpat.out.ORF_prob_best_tsv)
+    filter_cpat_results(convert_cpat_format.out, final_fasta)
+
+    split_FASTA(translation_fasta)
+    pfam_scan(split_FASTA.out.flatten(), pfamdb)
+    merge_pfam_results(pfam_scan.out.collect())
+    convert_pfam_scan_results(merge_pfam_results.out)
+
     final_expression
         .combine(orfanage_gtf)
         .combine(final_classification)
         .combine(primer_to_sample)
         .combine(final_fasta)
         .combine(annotation_gtf)
+        .combine(filter_cpat_results.out)
+        .combine(convert_pfam_scan_results.out)
     | IsoseqsSwitchList
 
-    run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
-
-    split_FASTA(translation_fasta)
-    pfam_scan(split_FASTA.out.flatten(), pfamdb)
-    merge_pfam_results(pfam_scan.out.collect())
+    PlotIsoformConsequences(IsoseqsSwitchList.out)
 }

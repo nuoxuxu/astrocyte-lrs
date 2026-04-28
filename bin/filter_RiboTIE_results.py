@@ -9,17 +9,17 @@ def main():
     parser.add_argument("--ribotie_cpm1_3sample", required=True, help="CSV with ORF_id column listing ORFs passing CPM threshold")
     parser.add_argument("--input_fasta", required=True, help="Input FASTA file of final transcripts")
     parser.add_argument("--input_expression", required=True, help="Input Parquet file of final expression")
+    parser.add_argument("--input_classification", required=True, help="Input Parquet file of final classification")
     parser.add_argument("--output_gtf", required=True, help="Output filtered GTF file")
     parser.add_argument("--output_fasta", required=True, help="Output filtered FASTA file")
     parser.add_argument("--output_expression", required=True, help="Output filtered expression Parquet file")
+    parser.add_argument("--output_classification", required=True, help="Output filtered classification Parquet file")
     args = parser.parse_args()
 
     ribotie_gtf = read_gtf(args.input_gtf, attributes=["transcript_id", "ORF_id"])
     ribotie_cpm1_3sample = pl.read_csv(args.ribotie_cpm1_3sample)
 
-    non_coding = ribotie_gtf.filter(pl.col("ORF_id").is_null())
-    coding = ribotie_gtf.filter(pl.col("transcript_id").is_in(ribotie_cpm1_3sample.get_column("ORF_id").unique().to_list()))
-    filtered = pl.concat([non_coding, coding])
+    filtered = ribotie_gtf.filter(pl.col("transcript_id").is_in(ribotie_cpm1_3sample.get_column("ORF_id").unique().to_list()))
 
     filtered\
         .drop(["transcript_id", "ORF_id"])\
@@ -34,6 +34,7 @@ def main():
 
     final_fasta = read_fasta(args.input_fasta)
     final_expression = pl.read_parquet(args.input_expression)
+    final_classification = pl.read_parquet(args.input_classification)
 
     tx_list\
         .join(final_expression, left_on="transcript_id_base", right_on="tname", how="left")\
@@ -46,6 +47,10 @@ def main():
         .drop("transcript_id_base")
 
     write_fasta(ribotie_filtered_final_fasta, args.output_fasta)
+
+    final_classification\
+        .filter(pl.col("isoform").is_in(tx_list.get_column("transcript_id_base").to_list()))\
+        .write_parquet(args.output_classification)
 
 if __name__ == "__main__":
     main()

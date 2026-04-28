@@ -7,12 +7,14 @@ library(readr)
 library(argparse)
 
 parser <- ArgumentParser(description='Create IsoformSwitchAnalyzeR object')
-parser$add_argument('--final_expression', type='character', required=TRUE, help='Path to final expression parquet file')
-parser$add_argument('--primer_to_sample', type='character', required=TRUE, help='Path to primer to sample CSV file')
-parser$add_argument('--final_fasta', type='character', required=TRUE, help='Path to corrected FASTA file')
-parser$add_argument('--orfanage_gtf', type='character', required=TRUE, help='Path to orfanage GTF file')
-parser$add_argument('--annotation_gtf', type='character', required=TRUE, help='Path to annotation GTF file')
+parser$add_argument('--final_expression',     type='character', required=TRUE, help='Path to final expression parquet file')
+parser$add_argument('--primer_to_sample',     type='character', required=TRUE, help='Path to primer to sample CSV file')
+parser$add_argument('--final_fasta',          type='character', required=TRUE, help='Path to corrected FASTA file')
+parser$add_argument('--orfanage_gtf',         type='character', required=TRUE, help='Path to orfanage GTF file')
+parser$add_argument('--annotation_gtf',       type='character', required=TRUE, help='Path to annotation GTF file')
 parser$add_argument('--final_classification', type='character', required=TRUE, help='Path to final classification parquet file')
+parser$add_argument('--cpat_results',         type='character', required=TRUE, help='Path to filtered CPAT results file')
+parser$add_argument('--pfam_results',         type='character', required=TRUE, help='Path to filtered pfam results file')
 args <- parser$parse_args()
 
 final_expression <- read_parquet(args$final_expression)
@@ -131,5 +133,25 @@ IsoseqsSwitchList$isoformFeatures <- IsoseqsSwitchList$isoformFeatures %>%
     ) %>% 
     select(-gene_name.x) %>% 
     dplyr::rename(gene_name=gene_name.y)
+
+IsoseqsSwitchList <- analyzeIntronRetention(IsoseqsSwitchList)
+IsoseqsSwitchList <- analyzeCPAT(
+    switchAnalyzeRlist   = IsoseqsSwitchList,
+    pathToCPATresultFile = args$cpat_results,
+    codingCutoff         = 0.725,
+    removeNoncodinORFs   = TRUE
+)
+IsoseqsSwitchList <- analyzeAlternativeSplicing(IsoseqsSwitchList)
+
+IsoseqsSwitchList <- extractSequence(IsoseqsSwitchList)
+IsoseqsSwitchList <- analyzeSwitchConsequences(
+    switchAnalyzeRlist = IsoseqsSwitchList, 
+    consequencesToAnalyze = c('intron_retention', 'coding_potential', 'ORF_seq_similarity', 'NMD_status')
+)
+
+IsoseqsSwitchList <- analyzePFAM(
+    switchAnalyzeRlist = IsoseqsSwitchList,
+    pathToPFAMresultFile = args$pfam_results
+)
 
 saveRDS(IsoseqsSwitchList, "IsoformSwitchAnalyzeR.rds")
