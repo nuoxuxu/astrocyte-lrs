@@ -1,24 +1,3 @@
-process format_gtf_for_ribotie {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/orf_prediction/orfanage_no_minlen/mid_stringency"
-
-    input:
-    tuple path(orfanage_gtf), path(final_classification), path(annotation_gtf)
-
-    output:
-    path("orfanage_numbered_exons.gtf")
-
-    script:
-    """
-    format_gtf_for_ribotie.py \\
-    --input_gtf ${orfanage_gtf} \\
-    --final_classification ${final_classification} \\
-    --annotation_gtf ${annotation_gtf} \\
-    --output_gtf orfanage_numbered_exons.gtf
-    """
-}
-
 process rename_chromosomes {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
@@ -43,18 +22,18 @@ process rename_chromosomes {
 process star_riboseq {
     module "StdEnv/2023:star/2.7.11b:samtools/1.22.1"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/riboseq_no_minlen/mid_stringency"
+    storeDir "nextflow_results/align/riboseq/${orfanage_mode}/mid_stringency"
 
     input:
-    tuple path(star_genomeDir), path(riboseq_unmapped_to_contaminants), path(sjdbGTFfile)
+    tuple val(orfanage_mode), path(sjdbGTFfile), path(riboseq_unmapped_to_contaminants), path(star_genomeDir)
 
     output:
     tuple path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.sortedByCoord.out.bam"), path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.sortedByCoord.out.bam.bai"), emit: genome_bam
-    path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.toTranscriptome.out.bam"), emit: transcriptome_bam
+    tuple val(orfanage_mode), path("${riboseq_unmapped_to_contaminants.simpleName}.Aligned.toTranscriptome.out.bam"), emit: transcriptome_bam
     path("${riboseq_unmapped_to_contaminants.simpleName}.SJ.out.tab"), emit: sj_tab
     path("${riboseq_unmapped_to_contaminants.simpleName}.Log.final.out"), emit: log_final_out
     path("${riboseq_unmapped_to_contaminants.simpleName}.Log.out"), emit: log_out
-    path("${riboseq_unmapped_to_contaminants.simpleName}.Signal.Unique.str1.out.bg"), emit: bedGraph_Unique
+    tuple val(orfanage_mode), path("${riboseq_unmapped_to_contaminants.simpleName}.Signal.Unique.str1.out.bg"), emit: bedGraph_Unique
     path("${riboseq_unmapped_to_contaminants.simpleName}.Signal.UniqueMultiple.str1.out.bg"), emit: bedGraph_UniqueMultiple
 
     script:
@@ -83,13 +62,13 @@ process star_riboseq {
 process generate_ribotie_yml {
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/prepare_ribotie_no_minlen/mid_stringency/${mode}"
+    storeDir "nextflow_results/prepare_ribotie/${orfanage_mode}/mid_stringency/${mode}"
 
     input:
-    tuple path(gtf_path), path(transcriptome_bams), val(mode), path(ref_genome_fasta), path(labels_csv)
+    tuple val(orfanage_mode), path(gtf_path), path(transcriptome_bams), val(mode), path(ref_genome_fasta), path(labels_csv)
 
     output:
-    tuple val(mode), path("RiboTIE.yml")
+    tuple val(orfanage_mode), val(mode), path("RiboTIE.yml")
 
     script:
     """
@@ -108,13 +87,13 @@ process generate_ribotie_yml {
 process generate_ribotie_db {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/prepare_ribotie_no_minlen/mid_stringency/${mode}"
+    storeDir "nextflow_results/prepare_ribotie/${orfanage_mode}/mid_stringency/${mode}"
 
     input:
-    tuple path(gtf_path), path(transcriptome_bam), val(mode), path(ribotie_yml), path(ref_genome_fasta)
+    tuple val(orfanage_mode), path(gtf_path), path(transcriptome_bam), val(mode), path(ribotie_yml), path(ref_genome_fasta)
 
     output:
-    tuple path("${gtf_path.baseName}.h5"), path("ribotie_res.h5"), val(mode)
+    tuple val(orfanage_mode), path("${gtf_path.baseName}.h5"), path("ribotie_res.h5"), val(mode)
 
     script:
     """
@@ -126,10 +105,10 @@ process generate_ribotie_db {
 process merge_bg_and_convert_to_bw {
     module "StdEnv/2023:bedtools/2.31.0:kent_tools/486"
     label "short_slurm_job"
-    storeDir "nextflow_results/align/riboseq_no_minlen/mid_stringency"
+    storeDir "nextflow_results/align/riboseq/${orfanage_mode}/mid_stringency"
 
     input:
-    tuple path(bedgraph_files), path(chrom_sizes)
+    tuple val(orfanage_mode), path(bedgraph_files), path(chrom_sizes)
 
     output:
     path("merged_riboseq.bw")
@@ -147,9 +126,7 @@ process merge_bg_and_convert_to_bw {
 
 workflow PREPARE_RIBOTIE {
     take:
-    orfanage_gtf
-    final_classification
-    annotation_gtf
+    formatted_orfanage_gtf_for_ribotie
     star_genomeDir
     riboseq_unmapped_to_contaminants
     ref_genome_fasta
@@ -158,44 +135,34 @@ workflow PREPARE_RIBOTIE {
     stimulation_labels
 
     main:
-
-    // Format ORFanage GTF for use with RiboTIE
-    orfanage_gtf
-        .combine(final_classification)
-        .combine(annotation_gtf)
-        | format_gtf_for_ribotie
-
-    orfanage_numbered_exons_gtf = format_gtf_for_ribotie.out
-
     // Align Ribo-seq reads to transcriptome
-    star_genomeDir
+    formatted_orfanage_gtf_for_ribotie
         .combine(channel.fromPath(riboseq_unmapped_to_contaminants))
-        .combine(orfanage_numbered_exons_gtf)
+        .combine(star_genomeDir)
         | star_riboseq
 
-    // Rename UCSC chromosome names to GENCODE chromosome names
+    // // Rename UCSC chromosome names to GENCODE chromosome names
     rename_chromosomes(chrom_sizes, chromAlias)
 
-    // Merge all bedGraph files generated by STAR and convert to bigWig
+    // // Merge all bedGraph files generated by STAR and convert to bigWig
     star_riboseq.out.bedGraph_Unique
-        .collect()
-        .map { [it] }
+        .groupTuple()
         .combine(rename_chromosomes.out)
         | merge_bg_and_convert_to_bw
 
     // Generate the yml file that contains RiboTIE input arguments
     // For now only run on the "merged" mode
-    orfanage_numbered_exons_gtf
-        .combine(star_riboseq.out.transcriptome_bam.collect().map { [it] })
+    formatted_orfanage_gtf_for_ribotie
+        .join(star_riboseq.out.transcriptome_bam.groupTuple())
         .combine(channel.of("merged"))
         .combine(ref_genome_fasta)
         .combine(stimulation_labels)
         | generate_ribotie_yml
 
     // Generate RiboTIE h5 database
-    orfanage_numbered_exons_gtf
-        .combine(star_riboseq.out.transcriptome_bam.collect().map { [it] })
-        .combine(generate_ribotie_yml.out)
+    formatted_orfanage_gtf_for_ribotie
+        .join(star_riboseq.out.transcriptome_bam.groupTuple())
+        .join(generate_ribotie_yml.out)
         .combine(ref_genome_fasta)
         | generate_ribotie_db
 

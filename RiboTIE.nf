@@ -1,18 +1,18 @@
 process RUN_RIBOTIE {
     module "python:gcc:arrow/19.0.1:rust"
     label "mid_slurm_job"
-    storeDir "nextflow_results/ribotie_no_minlen/mid_stringency/${mode}"
+    storeDir "nextflow_results/ribotie/${orfanage_mode}/mid_stringency/${mode}"
 
     input:
-    tuple path(gtf_h5), path(ribotie_h5), val(mode), path(ribotie_yml)
+    tuple val(orfanage_mode), path(gtf_h5), path(ribotie_h5), val(mode), path(ribotie_yml)
 
     output:
-    path("ribotie_res_${mode}.redundant.gtf"), emit: redundant_gtf
-    path("ribotie_res_${mode}.redundant.csv"), emit: redundant_csv
-    path("ribotie_res_${mode}.novel.gtf"),     emit: novel_gtf
-    path("ribotie_res_${mode}.novel.csv"),     emit: novel_csv
-    path("ribotie_res_${mode}.gtf"),           emit: filtered_gtf
-    path("ribotie_res_${mode}.csv"),           emit: filtered_csv
+    tuple val(orfanage_mode), path("ribotie_res_${mode}.redundant.gtf"),                                              emit: redundant_gtf
+    path("ribotie_res_${mode}.redundant.csv"),                                                                        emit: redundant_csv
+    path("ribotie_res_${mode}.novel.gtf"),                                                                            emit: novel_gtf
+    path("ribotie_res_${mode}.novel.csv"),                                                                            emit: novel_csv
+    path("ribotie_res_${mode}.gtf"),                                                                                  emit: filtered_gtf
+    path("ribotie_res_${mode}.csv"),                                                                                  emit: filtered_csv
     tuple path("ribotie_res_*.ckpt"), path("ribotie_res_*.npy"), path("ribotie_res_*.yml"), path("models"), path("multiqc"), emit: other
 
     script:
@@ -25,10 +25,10 @@ process RUN_RIBOTIE {
 process save_to_parquet {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "export/ribotie_no_minlen"
+    storeDir "export/ribotie/${orfanage_mode}"
 
     input:
-    path(input_gtf)
+    tuple val(orfanage_mode), path(input_gtf)
 
     output:
     path("${input_gtf.baseName}.parquet")
@@ -45,6 +45,7 @@ workflow {
         .splitJson()
         .map { entry ->
             tuple(
+                entry.orfanage_mode,
                 file(entry.gtf_h5),
                 file(entry.ribotie_h5),
                 entry.mode,
@@ -54,5 +55,5 @@ workflow {
         .set { gpu_input_ch }
 
     RUN_RIBOTIE(gpu_input_ch)
-    save_to_parquet(RUN_RIBOTIE.out.redundant_gtf)
+    // save_to_parquet(RUN_RIBOTIE.out.redundant_gtf)
 }
