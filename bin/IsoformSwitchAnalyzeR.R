@@ -17,18 +17,21 @@ parser$add_argument('--cpat_results',         type='character', required=TRUE, h
 parser$add_argument('--pfam_results',         type='character', required=TRUE, help='Path to filtered pfam results file')
 args <- parser$parse_args()
 
+# Rename final_expression column names from index primers to sample IDs
 final_expression <- read_parquet(args$final_expression)
-
 primer_to_sample <- read_csv(args$primer_to_sample) %>% 
     rename(index = `Index primer`, sampleID = `Sample_ID`)
-
 indices <- match(colnames(final_expression), primer_to_sample$index)
 colnames(final_expression) <- primer_to_sample$sampleID[indices]
-myDesign <- primer_to_sample %>% select(-index)
-
 final_expression <- final_expression %>%
     rename(isoform_id = 1)
 
+# Make sure "Unstim" is the reference level for condition in the design matrix
+myDesign <- primer_to_sample %>%
+    select(-index) %>%
+    mutate(condition = relevel(factor(condition), ref = "Unstim"))
+
+# Make sure that final_expression and orfanage_gtf have the same set of transcripts
 orfanage_tx <- rtracklayer::import(args$orfanage_gtf) %>%
     as_tibble() %>%
     filter(
@@ -41,24 +44,61 @@ final_expression <- final_expression %>%
         isoform_id %in% orfanage_tx
     )
 
-aSwitchList <- importRdata(
+# Get Ensembl ID to gene name mapping from annotation GTF
+gene_id_mapping <- rtracklayer::import(args$annotation_gtf) %>%
+  as_tibble() %>%
+  filter(type == 'gene') %>%
+  select(gene_id, gene_name) %>%
+  distinct() %>%
+  dplyr::rename(associated_gene = gene_id)
+
+id_to_name <- setNames(gene_id_mapping$gene_name, gene_id_mapping$associated_gene)
+
+resolve_gene_name <- function(compound_id) {
+    parts <- strsplit(compound_id, "_")[[1]]
+    names <- id_to_name[parts]
+    names[is.na(names)] <- parts[is.na(names)]
+    paste(names, collapse = "_")
+}
+
+# Creat GRanges object for isoformExonAnnoation
+isoformExonAnnoation <- rtracklayer::import(args$orfanage_gtf)
+isoformExonAnnoation <- subset(isoformExonAnnoation, mcols(isoformExonAnnoation)$type=="exon")
+mcols(isoformExonAnnoation)$type <- NULL
+
+classification <- read_parquet(args$final_classification) %>%
+    mutate(gene_name = sapply(associated_gene, resolve_gene_name))
+
+mcols(isoformExonAnnoation)$gene_name <- classification$gene_name[match(
+        sub("_\\d+$", "", mcols(isoformExonAnnoation)$transcript_id),
+        classification$isoform
+    )]
+
+mcols(isoformExonAnnoation)$gene_id <- mcols(isoformExonAnnoation)$gene_name
+names(mcols(isoformExonAnnoation))[names(mcols(isoformExonAnnoation)) == "transcript_id"] <- "isoform_id"
+
+# Create switchAnalyzeRlist object
+IsoseqsSwitchList <- importRdata(
     isoformCountMatrix = final_expression,
     designMatrix = myDesign,
-    isoformExonAnnoation = args$orfanage_gtf,
+    isoformExonAnnoation = isoformExonAnnoation,
     isoformNtFasta = args$final_fasta,
     addAnnotatedORFs = TRUE,
     fixStringTieAnnotationProblem = FALSE
 )
 
-aSwitchListFiltered <- preFilter(
-    switchAnalyzeRlist = aSwitchList,
+IsoseqsSwitchList <- addORFfromGTF(IsoseqsSwitchList, args$orfanage_gtf)
+
+# Pre-filtering
+IsoseqsSwitchList <- preFilter(
+    switchAnalyzeRlist = IsoseqsSwitchList,
     geneExpressionCutoff = 1,
     isoformExpressionCutoff = 0,
-    removeSingleIsoformGenes = TRUE    
+    removeSingleIsoformGenes = TRUE
 )
 
 IsoseqsSwitchList <- isoformSwitchTestDEXSeq(
-    switchAnalyzeRlist = aSwitchListFiltered,
+    switchAnalyzeRlist = IsoseqsSwitchList,
     reduceToSwitchingGenes = FALSE,
     showProgress = TRUE
 )
@@ -74,6 +114,7 @@ geneDDS <- DESeqDataSetFromMatrix(
     colData = IsoseqsSwitchList$designMatrix,
     design = ~ condition
 )
+geneDDS$condition <- relevel(geneDDS$condition, ref = "Unstim")
 geneDDS <- DESeq(geneDDS)
 geneRes <- results(geneDDS)
 geneDE <- data.frame(
@@ -92,6 +133,7 @@ isoDDS <- DESeqDataSetFromMatrix(
     colData = IsoseqsSwitchList$designMatrix,
     design = ~ condition
 )
+isoDDS$condition <- relevel(isoDDS$condition, ref = "Unstim")
 isoDDS <- DESeq(isoDDS)
 isoRes <- results(isoDDS)
 isoDE <- data.frame(
@@ -113,29 +155,7 @@ idx_iso <- match(
 )
 IsoseqsSwitchList$isoformFeatures$iso_q_value <- isoDE$iso_q_value[idx_iso]
 
-gene_id_mapping <- rtracklayer::import(args$annotation_gtf) %>% 
-  as_tibble() %>%
-  filter(type == 'gene') %>%
-  select(gene_id, gene_name) %>%
-  distinct() %>%
-  dplyr::rename(associated_gene = gene_id)
-
-classification <- read_parquet(args$final_classification) %>% 
-    left_join(
-        gene_id_mapping,
-        by = 'associated_gene'
-    )
-
-IsoseqsSwitchList$isoformFeatures <- IsoseqsSwitchList$isoformFeatures %>%
-    mutate(isoform_id_base = sub("_\\d+$", "", isoform_id)) %>%
-    left_join(
-        dplyr::rename(dplyr::select(classification, c(isoform, gene_name)), isoform_id_base = isoform),
-        by = 'isoform_id_base',
-    ) %>%
-    select(-isoform_id_base) %>%
-    select(-gene_name.x) %>%
-    dplyr::rename(gene_name=gene_name.y)
-
+# Analyze switch consequences
 IsoseqsSwitchList <- analyzeIntronRetention(IsoseqsSwitchList)
 IsoseqsSwitchList <- analyzeCPAT(
     switchAnalyzeRlist   = IsoseqsSwitchList,
