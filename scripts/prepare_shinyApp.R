@@ -93,3 +93,9 @@ gtf <- gtf %>%
 
 lr_log2_cpm %>% write.csv("transcript_vis_app/data/lr_log2_cpm.csv", row.names = FALSE)
 gtf %>% write.csv("transcript_vis_app/data/gtf.csv", row.names = FALSE)
+
+
+load("astrocyte_vis_app/data/switchPlotFromTables.RData")
+isoformFeatures %>% 
+  filter((iso_q_value <= 0.05) | (isoform_switch_q_value <= 0.05) | (gene_q_value <= 0.05)) %>% 
+  write.csv("export/isoform_switching_sig.csv", row.names = FALSE)
