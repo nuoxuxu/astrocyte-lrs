@@ -1,7 +1,7 @@
 process IsoseqsSwitchList {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/mid_stringency"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR"
 
     input:
     tuple path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf), path(cpat_results), path(pfam_results)
@@ -27,7 +27,7 @@ process run_cpat {
     module "python:gcc:arrow/19.0.1:rust:r/4.4.0"
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/mid_stringency"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/cpat"
 
     input:
     path(Human_coding_transcripts_CDS)
@@ -59,6 +59,7 @@ process run_cpat {
 
 process split_FASTA {
     label "short_slurm_job"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam/split_fasta"
 
     input:
     path(translation_fasta)
@@ -98,19 +99,20 @@ process split_FASTA {
 process pfam_scan {
     module "hmmer/3.4"
     label "mid_slurm_job"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam"
 
     input:
     path(translation_fasta)
     path(pfamdb)
 
     output:
-    path("pfam_scan_results.csv")
+    path("${translation_fasta.simpleName}.csv")
 
     script:
     """
     pfam_scan.py \\
         -cpu 8 \\
-        -out pfam_scan_results.csv \\
+        -out ${translation_fasta.simpleName}.csv \\
         -outfmt csv \\
         $translation_fasta \\
         $pfamdb
@@ -120,7 +122,7 @@ process pfam_scan {
 process convert_cpat_format {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/mid_stringency"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/cpat"
 
     input:
     path(orf_prob_best_tsv)
@@ -137,7 +139,7 @@ process convert_cpat_format {
 process filter_cpat_results {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/mid_stringency/filtered"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/cpat"
 
     input:
     path(cpat_results)
@@ -154,7 +156,7 @@ process filter_cpat_results {
 
 process merge_pfam_results {
     label "short_slurm_job"
-    storeDir "nextflow_results/quality/mid_stringency"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam"
 
     input:
     path(pfam_results)
@@ -164,8 +166,9 @@ process merge_pfam_results {
 
     script:
     """
-    head -1 \$(ls *.csv | head -1) > pfam_scan_results.csv
-    for f in *.csv; do
+    files=($pfam_results)
+    head -1 "\${files[0]}" > pfam_scan_results.csv
+    for f in "\${files[@]}"; do
         tail -n +2 "\$f" >> pfam_scan_results.csv
     done
     """
@@ -174,7 +177,7 @@ process merge_pfam_results {
 process convert_pfam_scan_results {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality/mid_stringency"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam"
 
     input:
     path(pfam_scan_results)
@@ -191,7 +194,7 @@ process convert_pfam_scan_results {
 process PlotIsoformConsequences {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/mid_stringency"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR"
 
     input:
     path(rds)
@@ -224,7 +227,7 @@ workflow ISOFORMSWITCH {
 
     run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
     convert_cpat_format(run_cpat.out.ORF_prob_best_tsv)
-    filter_cpat_results(convert_cpat_format.out, final_fasta)
+    // filter_cpat_results(convert_cpat_format.out, final_fasta)
 
     split_FASTA(translation_fasta)
     pfam_scan(split_FASTA.out.flatten(), pfamdb)
@@ -237,7 +240,7 @@ workflow ISOFORMSWITCH {
         .combine(primer_to_sample)
         .combine(final_fasta)
         .combine(annotation_gtf)
-        .combine(filter_cpat_results.out)
+        .combine(convert_cpat_format.out)
         .combine(convert_pfam_scan_results.out)
     | IsoseqsSwitchList
 
