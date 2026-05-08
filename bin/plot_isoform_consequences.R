@@ -19,6 +19,7 @@ dev.off()
 pdf(file='switch_consequences.pdf', onefile=FALSE, height=6, width=9)
 extractConsequenceEnrichment(
     IsoseqsSwitchList,
+    consequencesToAnalyze=c('intron_retention', 'coding_potential', 'ORF_seq_similarity', 'NMD_status', 'domains_identified', 'domain_isotype'),
     analysisOppositeConsequence=TRUE,
     localTheme=theme_bw(base_size=14),
     returnResult=TRUE

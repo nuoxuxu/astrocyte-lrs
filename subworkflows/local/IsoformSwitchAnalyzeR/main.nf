@@ -209,6 +209,25 @@ process PlotIsoformConsequences {
     """
 }
 
+process volcano_plot {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR"
+
+    input:
+    path(rds)
+
+    output:
+    path("volcano_DGE.pdf")
+    path("volcano_DTU.pdf")
+    path("volcano_iso_DGE.pdf")
+
+    script:
+    """
+    IsoformSwitchAnalyzeR_volcano.R --switchlist $rds
+    """
+}
+
 workflow ISOFORMSWITCH {
     take:
     final_expression
@@ -245,4 +264,5 @@ workflow ISOFORMSWITCH {
     | IsoseqsSwitchList
 
     PlotIsoformConsequences(IsoseqsSwitchList.out)
+    volcano_plot(IsoseqsSwitchList.out)
 }
