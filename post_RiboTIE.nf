@@ -23,12 +23,13 @@ workflow {
         }
         .set { ribotie_input_ch }
 
+    ribotie_input_ch.filter { it[0] == "minlen" }.set{ ribotie_input_ch }
+
     CDS_LENGTH_DISTRIBUTION(ribotie_input_ch, ref_genome_fasta)
 
-    // FILTER_RIBOTIE(ribotie_input_ch.map { it[1] }, channel.value(file(params.ribotie_cpm1_3sample)), final_fasta, final_expression, final_classification, ref_genome_fasta)
+    FILTER_RIBOTIE(ribotie_input_ch.map { it[1] }, channel.value(file(params.ribotie_cpm1_3sample)), final_fasta, final_expression, final_classification, ref_genome_fasta)
 
-    // ISOFORMSWITCH(FILTER_RIBOTIE.out.filtered_RiboTIE_expression, primer_to_sample, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, FILTER_RIBOTIE.out.filtered_RiboTIE_gtf, annotation_gtf, FILTER_RIBOTIE.out.filtered_RiboTIE_classification, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
+    ISOFORMSWITCH(FILTER_RIBOTIE.out.filtered_RiboTIE_expression, primer_to_sample, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, FILTER_RIBOTIE.out.filtered_RiboTIE_gtf, annotation_gtf, FILTER_RIBOTIE.out.filtered_RiboTIE_classification, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
 
-    // GET_QUALITY_METRICS(params.ribotie_training_outputs, PhyloCSFpp_db)
-    // RIBOTIE_POSTANALYSIS(params.ribotie_training_outputs, FILTER_RIBOTIE.out.filtered_RiboTIE_gtf, FILTER_RIBOTIE.out.filtered_RiboTIE_expression)
+    RIBOTIE_POSTANALYSIS(params.ribotie_training_outputs, FILTER_RIBOTIE.out.filtered_RiboTIE_gtf, FILTER_RIBOTIE.out.filtered_RiboTIE_expression)
 }
