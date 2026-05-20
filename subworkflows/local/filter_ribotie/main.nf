@@ -5,10 +5,8 @@ process FILTER_RIBOTIE_RESULTS {
 
     input:
     tuple path(input_gtf), path(input_fasta), path(input_expression), path(input_classification)
-    path ribotie_cpm1_3sample
 
     output:
-    path "filtered_RiboTIE.gtf",                              emit: filtered_RiboTIE_gtf
     path "filtered_RiboTIE.fasta",                            emit: filtered_RiboTIE_fasta
     path "ribotie_filtered_final_expression.parquet",         emit: filtered_RiboTIE_expression
     path "ribotie_filtered_final_classification.parquet",     emit: filtered_RiboTIE_classification
@@ -18,11 +16,9 @@ process FILTER_RIBOTIE_RESULTS {
     source /scratch/nxu/astrocytes/pytorch/bin/activate
     filter_RiboTIE_results.py \\
         --input_gtf $input_gtf \\
-        --ribotie_cpm1_3sample $ribotie_cpm1_3sample \\
         --input_fasta $input_fasta \\
         --input_expression $input_expression \\
         --input_classification $input_classification \\
-        --output_gtf filtered_RiboTIE.gtf \\
         --output_fasta filtered_RiboTIE.fasta \\
         --output_expression ribotie_filtered_final_expression.parquet \\
         --output_classification ribotie_filtered_final_classification.parquet
@@ -52,7 +48,6 @@ process translateORFs {
 workflow FILTER_RIBOTIE {
     take:
     ribotie_filtered_gtf
-    ribotie_cpm1_3sample
     final_fasta
     final_expression
     final_classification
@@ -64,12 +59,11 @@ workflow FILTER_RIBOTIE {
         .combine(final_expression)
         .combine(final_classification)
         .set { joined }
-    FILTER_RIBOTIE_RESULTS(joined, ribotie_cpm1_3sample)
+    FILTER_RIBOTIE_RESULTS(joined)
 
-    translateORFs(ref_genome_fasta, FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_gtf)
+    translateORFs(ref_genome_fasta, ribotie_filtered_gtf)
 
     emit:
-    filtered_RiboTIE_gtf            = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_gtf
     filtered_RiboTIE_fasta          = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_fasta
     filtered_RiboTIE_expression     = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_expression
     filtered_RiboTIE_classification = FILTER_RIBOTIE_RESULTS.out.filtered_RiboTIE_classification

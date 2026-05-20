@@ -90,12 +90,12 @@ IsoseqsSwitchList <- importRdata(
 IsoseqsSwitchList <- addORFfromGTF(IsoseqsSwitchList, args$orfanage_gtf)
 
 # Pre-filtering
-IsoseqsSwitchList <- preFilter(
-    switchAnalyzeRlist = IsoseqsSwitchList,
-    geneExpressionCutoff = 1,
-    isoformExpressionCutoff = 0,
-    removeSingleIsoformGenes = TRUE
-)
+# IsoseqsSwitchList <- preFilter(
+#     switchAnalyzeRlist = IsoseqsSwitchList,
+#     geneExpressionCutoff = 0,
+#     isoformExpressionCutoff = 0,
+#     removeSingleIsoformGenes = TRUE
+# )
 
 IsoseqsSwitchList <- isoformSwitchTestDEXSeq(
     switchAnalyzeRlist = IsoseqsSwitchList,
@@ -177,3 +177,5 @@ IsoseqsSwitchList <- analyzePFAM(
 )
 
 saveRDS(IsoseqsSwitchList, "IsoformSwitchAnalyzeR.rds")
+
+IsoseqsSwitchList$isoformFeatures %>% write.csv("isoformFeatures.csv", row.names = FALSE)

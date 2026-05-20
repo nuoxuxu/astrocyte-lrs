@@ -7,7 +7,8 @@ process IsoseqsSwitchList {
     tuple path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf), path(cpat_results), path(pfam_results)
 
     output:
-    path("IsoformSwitchAnalyzeR.rds")
+    path("IsoformSwitchAnalyzeR.rds"), emit: rds
+    path("isoformFeatures.csv"), emit: isoform_features_csv
 
     script:
     """
@@ -194,7 +195,7 @@ process convert_pfam_scan_results {
 process PlotIsoformConsequences {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/figures"
 
     input:
     path(rds)
@@ -212,7 +213,7 @@ process PlotIsoformConsequences {
 process volcano_plot {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/figures"
 
     input:
     path(rds)
@@ -246,7 +247,6 @@ workflow ISOFORMSWITCH {
 
     run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
     convert_cpat_format(run_cpat.out.ORF_prob_best_tsv)
-    // filter_cpat_results(convert_cpat_format.out, final_fasta)
 
     split_FASTA(translation_fasta)
     pfam_scan(split_FASTA.out.flatten(), pfamdb)
@@ -263,6 +263,6 @@ workflow ISOFORMSWITCH {
         .combine(convert_pfam_scan_results.out)
     | IsoseqsSwitchList
 
-    PlotIsoformConsequences(IsoseqsSwitchList.out)
-    volcano_plot(IsoseqsSwitchList.out)
+    PlotIsoformConsequences(IsoseqsSwitchList.out.rds)
+    volcano_plot(IsoseqsSwitchList.out.rds)
 }

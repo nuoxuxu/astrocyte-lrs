@@ -1,31 +1,35 @@
 #!/bin/env python
 import argparse
+import types
 import polars as pl
-from src.utils import read_gtf, read_fasta, write_fasta
+from src.utils import read_fasta, write_fasta
 
+def read_gtf(file, attributes=["transcript_id"], keep_attributes=True):
+    if keep_attributes:
+        return pl.read_csv(file, separator="\t", comment_prefix="#", quote_char=None, schema_overrides = {"seqname": pl.String}, has_header = False, new_columns=["seqname","source","feature","start","end","score","strand","frame","attributes"])\
+            .with_columns(
+                [pl.col("attributes").str.extract(rf'{attribute} "([^;]*)";').alias(attribute) for attribute in attributes]
+                )
+    else:
+        return pl.read_csv(file, separator="\t", comment_prefix="#", quote_char=None, schema_overrides = {"seqname": pl.String}, has_header = False, new_columns=["seqname","source","feature","start","end","score","strand","frame","attributes"])\
+            .with_columns(
+                [pl.col("attributes").str.extract(rf'{attribute} "([^;]*)";').alias(attribute) for attribute in attributes]
+                ).drop("attributes")
+    
 def main():
     parser = argparse.ArgumentParser(description="Filter RiboTIE GTF results by CPM threshold CSV")
     parser.add_argument("--input_gtf", required=True, help="Input RiboTIE GTF file")
-    parser.add_argument("--ribotie_cpm1_3sample", required=True, help="CSV with ORF_id column listing ORFs passing CPM threshold")
     parser.add_argument("--input_fasta", required=True, help="Input FASTA file of final transcripts")
     parser.add_argument("--input_expression", required=True, help="Input Parquet file of final expression")
     parser.add_argument("--input_classification", required=True, help="Input Parquet file of final classification")
-    parser.add_argument("--output_gtf", required=True, help="Output filtered GTF file")
     parser.add_argument("--output_fasta", required=True, help="Output filtered FASTA file")
     parser.add_argument("--output_expression", required=True, help="Output filtered expression Parquet file")
     parser.add_argument("--output_classification", required=True, help="Output filtered classification Parquet file")
     args = parser.parse_args()
 
-    ribotie_gtf = read_gtf(args.input_gtf, attributes=["transcript_id", "ORF_id"])
-    ribotie_cpm1_3sample = pl.read_csv(args.ribotie_cpm1_3sample)
+    ribotie_gtf = read_gtf(args.input_gtf, attributes=["transcript_id"])
 
-    filtered = ribotie_gtf.filter(pl.col("transcript_id").is_in(ribotie_cpm1_3sample.get_column("ORF_id").unique().to_list()))
-
-    filtered\
-        .drop(["transcript_id", "ORF_id"])\
-        .write_csv(args.output_gtf, separator="\t", include_header=False, quote_style="never")
-
-    tx_list = filtered\
+    tx_list = ribotie_gtf\
         .filter(pl.col("feature") == "transcript")\
         .with_columns(
             pl.col("transcript_id").map_elements(lambda x: x.split("_")[0], return_dtype=pl.String).alias("transcript_id_base")
