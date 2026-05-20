@@ -229,6 +229,23 @@ process volcano_plot {
     """
 }
 
+process prepare_shinyApp {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "astrocyte_vis_app/data"
+
+    input:
+    path(rds)
+
+    output:
+    path("switchPlotFromTables.RData")
+
+    script:
+    """
+    extract_rds_data.R --rds $rds --output switchPlotFromTables.RData
+    """
+}
+
 workflow ISOFORMSWITCH {
     take:
     final_expression
@@ -265,4 +282,5 @@ workflow ISOFORMSWITCH {
 
     PlotIsoformConsequences(IsoseqsSwitchList.out.rds)
     volcano_plot(IsoseqsSwitchList.out.rds)
+    prepare_shinyApp(IsoseqsSwitchList.out.rds)
 }
