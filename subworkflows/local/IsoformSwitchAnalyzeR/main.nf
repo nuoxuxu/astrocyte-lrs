@@ -1,10 +1,10 @@
 process IsoseqsSwitchList {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}"
 
     input:
-    tuple path(final_expression), path(orfanage_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf), path(cpat_results), path(pfam_results)
+    tuple val(version), path(final_expression), path(predicted_cds_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf), path(cpat_results), path(pfam_results)
 
     output:
     path("IsoformSwitchAnalyzeR.rds"), emit: rds
@@ -16,7 +16,7 @@ process IsoseqsSwitchList {
         --final_expression $final_expression \\
         --primer_to_sample $primer_to_sample \\
         --final_fasta $final_fasta \\
-        --orfanage_gtf $orfanage_gtf \\
+        --predicted_cds_gtf $predicted_cds_gtf \\
         --annotation_gtf $annotation_gtf \\
         --final_classification $final_classification \\
         --cpat_results $cpat_results \\
@@ -28,9 +28,10 @@ process run_cpat {
     module "python:gcc:arrow/19.0.1:rust:r/4.4.0"
     beforeScript 'source /scratch/nxu/astrocytes/pytorch/bin/activate'
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/cpat"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/cpat"
 
     input:
+    val(version)
     path(Human_coding_transcripts_CDS)
     path(Human_noncoding_transcripts_RNA)
     path(Human_logitModel)
@@ -60,9 +61,10 @@ process run_cpat {
 
 process split_FASTA {
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam/split_fasta"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/pfam/split_fasta"
 
     input:
+    val(version)
     path(translation_fasta)
 
     output:
@@ -100,11 +102,10 @@ process split_FASTA {
 process pfam_scan {
     module "hmmer/3.4"
     label "mid_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/pfam"
 
     input:
-    path(translation_fasta)
-    path(pfamdb)
+    tuple val(version), path(translation_fasta), path(pfamdb)
 
     output:
     path("${translation_fasta.simpleName}.csv")
@@ -123,9 +124,10 @@ process pfam_scan {
 process convert_cpat_format {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/cpat"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/cpat"
 
     input:
+    val(version)
     path(orf_prob_best_tsv)
 
     output:
@@ -140,11 +142,10 @@ process convert_cpat_format {
 process filter_cpat_results {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/cpat"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/cpat"
 
     input:
-    path(cpat_results)
-    path(ribotie_fasta)
+    tuple val(version), path(cpat_results), path(ribotie_fasta)
 
     output:
     path("cpat_results_filtered.txt")
@@ -157,9 +158,10 @@ process filter_cpat_results {
 
 process merge_pfam_results {
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/pfam"
 
     input:
+    val(version)
     path(pfam_results)
 
     output:
@@ -178,9 +180,10 @@ process merge_pfam_results {
 process convert_pfam_scan_results {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/pfam"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/pfam"
 
     input:
+    val(version)
     path(pfam_scan_results)
 
     output:
@@ -195,9 +198,10 @@ process convert_pfam_scan_results {
 process PlotIsoformConsequences {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/figures"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/figures"
 
     input:
+    val(version)
     path(rds)
 
     output:
@@ -213,9 +217,10 @@ process PlotIsoformConsequences {
 process volcano_plot {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/IsoformSwitchAnalyzeR/figures"
+    storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/figures"
 
     input:
+    val(version)
     path(rds)
 
     output:
@@ -232,9 +237,10 @@ process volcano_plot {
 process prepare_shinyApp {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "astrocyte_vis_app/data"
+    storeDir "astrocyte_vis_app/${version}/data"
 
     input:
+    val(version)
     path(rds)
 
     output:
@@ -248,10 +254,11 @@ process prepare_shinyApp {
 
 workflow ISOFORMSWITCH {
     take:
+    version
     final_expression
     primer_to_sample
     final_fasta
-    orfanage_gtf
+    predicted_cds_gtf
     annotation_gtf
     final_classification
     translation_fasta
@@ -262,25 +269,33 @@ workflow ISOFORMSWITCH {
 
     main:
 
-    run_cpat(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
-    convert_cpat_format(run_cpat.out.ORF_prob_best_tsv)
+    run_cpat(version, Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
+    convert_cpat_format(version, run_cpat.out.ORF_prob_best_tsv)
 
-    split_FASTA(translation_fasta)
-    pfam_scan(split_FASTA.out.flatten(), pfamdb)
-    merge_pfam_results(pfam_scan.out.collect())
-    convert_pfam_scan_results(merge_pfam_results.out)
+    split_FASTA(version, translation_fasta)
+    split_FASTA.out.flatten()
+        .combine(pfamdb)
+        .combine(version)
+        .map { fasta, pfam, ver -> tuple(ver, fasta, pfam) }
+    | pfam_scan
+    merge_pfam_results(version, pfam_scan.out.collect())
+    convert_pfam_scan_results(version, merge_pfam_results.out)
 
     final_expression
-        .combine(orfanage_gtf)
+        .combine(predicted_cds_gtf)
         .combine(final_classification)
         .combine(primer_to_sample)
         .combine(final_fasta)
         .combine(annotation_gtf)
         .combine(convert_cpat_format.out)
         .combine(convert_pfam_scan_results.out)
+        .combine(version)
+        .map { expr, cds_gtf, classif, primer, fasta, annot, cpat, pfam, ver ->
+            tuple(ver, expr, cds_gtf, classif, primer, fasta, annot, cpat, pfam)
+        }
     | IsoseqsSwitchList
 
-    PlotIsoformConsequences(IsoseqsSwitchList.out.rds)
-    volcano_plot(IsoseqsSwitchList.out.rds)
-    prepare_shinyApp(IsoseqsSwitchList.out.rds)
+    PlotIsoformConsequences(version, IsoseqsSwitchList.out.rds)
+    volcano_plot(version, IsoseqsSwitchList.out.rds)
+    // prepare_shinyApp(version, IsoseqsSwitchList.out.rds)
 }
