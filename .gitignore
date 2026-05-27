@@ -9,6 +9,8 @@ proc/
 figures/
 export/
 ribotie_res/
+results/
+docs/
 
 # Data
 data/
