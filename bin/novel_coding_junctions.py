@@ -1,26 +1,21 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Identify novel coding splice junctions.
 
 Steps:
-  1. Parse CDS features from from_collaborator/filtered_output.gtf
-  2. Parse CDS features from GENCODE v47 annotation GTF
+  1. Parse CDS features from a collaborator GTF
+  2. Parse CDS features from GENCODE annotation GTF
   3. Derive intron junctions between consecutive CDS exons per transcript
   4. A junction is novel if the exact (chrom, donor, acceptor, strand) tuple
-     is absent from GENCODE coding junctions. This includes junctions where
-     both splice sites individually exist in GENCODE but are paired differently.
-     → results/aim_2/novel_coding_junctions.tsv
+     is absent from GENCODE coding junctions.
 """
+
+import argparse
 
 import polars as pl
 
-COLLAB_GTF  = "from_collaborator/filtered_output.gtf"
-GENCODE_GTF = "/project/rrg-shreejoy/Genomic_references/GENCODE/gencode.v47.annotation.gtf"
-OUT_FILE    = "results/aim_2/novel_coding_junctions.tsv"
-
 
 def parse_attribute(attr_string: str, key: str) -> str:
-    """Extract a single attribute value from a GTF attribute string."""
     for field in attr_string.split(";"):
         field = field.strip()
         if field.startswith(key + " "):
@@ -56,14 +51,9 @@ def load_cds_junctions(gtf_path: str) -> pl.DataFrame:
         rows, schema=["chrom", "start", "end", "strand", "transcript_id"], orient="row"
     )
 
-    # Deduplicate identical CDS entries (same transcript may have duplicate rows
-    # with different ribotie_score or other per-read attributes)
     cds = cds.unique(subset=["chrom", "start", "end", "strand", "transcript_id"])
-
-    # Sort by transcript then position (start, then end for stability)
     cds = cds.sort(["transcript_id", "start", "end"])
 
-    # Derive junctions between consecutive CDS exons in the same transcript
     shifted = cds.with_columns([
         pl.col("transcript_id").shift(-1).alias("next_tx"),
         pl.col("start").shift(-1).alias("next_start"),
@@ -78,39 +68,49 @@ def load_cds_junctions(gtf_path: str) -> pl.DataFrame:
             pl.col("next_start").alias("acceptor"),
             pl.col("strand"),
         ])
-        # Keep only true introns (gap between non-overlapping CDS exons)
         .filter(pl.col("donor") < pl.col("acceptor"))
         .unique()
     )
     return junctions
 
 
-print("Parsing collaborator GTF …")
-collab_junctions = load_cds_junctions(COLLAB_GTF)
-print(f"  {len(collab_junctions):,} unique coding junctions")
+def main():
+    parser = argparse.ArgumentParser(description="Identify novel coding splice junctions.")
+    parser.add_argument("predicted_cds_gtf", help="Collaborator GTF file")
+    parser.add_argument("gencode_gtf", help="GENCODE annotation GTF file")
+    parser.add_argument("-o", "--output", default="novel_coding_junctions.tsv",
+                        help="Output TSV file (default: novel_coding_junctions.tsv)")
+    args = parser.parse_args()
 
-print("Parsing GENCODE GTF …")
-gencode_junctions = load_cds_junctions(GENCODE_GTF)
-print(f"  {len(gencode_junctions):,} unique coding junctions")
+    print("Parsing collaborator GTF …")
+    collab_junctions = load_cds_junctions(args.predicted_cds_gtf)
+    print(f"  {len(collab_junctions):,} unique coding junctions")
 
-# Set difference: in collaborator but not in GENCODE
-gencode_set = set(
-    zip(
-        gencode_junctions["chrom"].to_list(),
-        gencode_junctions["donor"].to_list(),
-        gencode_junctions["acceptor"].to_list(),
-        gencode_junctions["strand"].to_list(),
+    print("Parsing GENCODE GTF …")
+    gencode_junctions = load_cds_junctions(args.gencode_gtf)
+    print(f"  {len(gencode_junctions):,} unique coding junctions")
+
+    gencode_set = set(
+        zip(
+            gencode_junctions["chrom"].to_list(),
+            gencode_junctions["donor"].to_list(),
+            gencode_junctions["acceptor"].to_list(),
+            gencode_junctions["strand"].to_list(),
+        )
     )
-)
 
-novel = collab_junctions.filter(
-    pl.struct(["chrom", "donor", "acceptor", "strand"]).map_elements(
-        lambda r: (r["chrom"], r["donor"], r["acceptor"], r["strand"]) not in gencode_set,
-        return_dtype=pl.Boolean,
+    novel = collab_junctions.filter(
+        pl.struct(["chrom", "donor", "acceptor", "strand"]).map_elements(
+            lambda r: (r["chrom"], r["donor"], r["acceptor"], r["strand"]) not in gencode_set,
+            return_dtype=pl.Boolean,
+        )
     )
-)
 
-print(f"Novel coding junctions (collaborator − GENCODE): {len(novel):,}")
+    print(f"Novel coding junctions (collaborator − GENCODE): {len(novel):,}")
 
-novel.write_csv(OUT_FILE, separator="\t")
-print(f"Written to {OUT_FILE}")
+    novel.write_csv(args.output, separator="\t")
+    print(f"Written to {args.output}")
+
+
+if __name__ == "__main__":
+    main()

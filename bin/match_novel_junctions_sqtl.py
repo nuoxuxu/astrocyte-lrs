@@ -1,25 +1,23 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Intersect novel coding splice junctions with BigBrain cis-sQTLs.
 
 Steps:
-  1. Load novel coding junctions from results/aim_2/novel_coding_junctions.tsv
-  2. Parse from_collaborator/filtered_output.gtf to map each junction to the
-     transcript_ids that contain it (semicolon-separated when multiple)
+  1. Load novel coding junctions TSV
+  2. Parse predicted CDS GTF to map each junction to the transcript_ids that
+     contain it (semicolon-separated when multiple)
   3. Build feature key: {chrom}_{donor}_{acceptor-1}  (acceptor-1 converts the
      first base of the downstream exon to the last base of the intron, matching
      the BigBrain coordinate convention)
-  4. Join on the feature column of BigBrain_cis_sQTL_ALL_top_assoc.tsv
+  4. Join on the feature column of the BigBrain cis-sQTL file
   5. Keep feature, transcript_ids, gene/variant identifiers, and meta-analysis
-     statistics → results/aim_2/novel_coding_junction_sqtl_matches.tsv
+     statistics
 """
+
+import argparse
 
 import polars as pl
 
-COLLAB_GTF     = "from_collaborator/filtered_output.gtf"
-JUNCTIONS_FILE = "results/aim_2/novel_coding_junctions.tsv"
-SQTL_FILE      = "data/BigBrain_cis_sQTL_ALL_top_assoc.tsv"
-OUT_FILE       = "results/aim_2/novel_coding_junction_sqtl_matches.tsv"
 
 META_COLS = [
     "feature", "gene_ids", "gene_names",
@@ -80,7 +78,6 @@ def build_junction_to_transcripts(gtf_path: str) -> pl.DataFrame:
         .filter(pl.col("donor") < pl.col("acceptor"))
     )
 
-    # Aggregate transcript_ids per junction
     return (
         junc_tx
         .group_by(["chrom", "donor", "acceptor", "strand"])
@@ -88,31 +85,43 @@ def build_junction_to_transcripts(gtf_path: str) -> pl.DataFrame:
     )
 
 
-print("Building junction → transcript_id map from collaborator GTF …")
-junc_tx_map = build_junction_to_transcripts(COLLAB_GTF)
+def main():
+    parser = argparse.ArgumentParser(
+        description="Intersect novel coding splice junctions with BigBrain cis-sQTLs."
+    )
+    parser.add_argument("predicted_cds_gtf", help="Predicted CDS GTF file")
+    parser.add_argument("junctions", help="Novel coding junctions TSV (from novel_coding_junctions.py)")
+    parser.add_argument("sqtl_file", help="BigBrain cis-sQTL TSV file")
+    parser.add_argument("-o", "--output", default="novel_coding_junction_sqtl_matches.tsv",
+                        help="Output TSV file (default: novel_coding_junction_sqtl_matches.tsv)")
+    args = parser.parse_args()
 
-junctions = pl.read_csv(JUNCTIONS_FILE, separator="\t")
+    print("Building junction → transcript_id map from predicted CDS GTF …")
+    junc_tx_map = build_junction_to_transcripts(args.predicted_cds_gtf)
 
-# Attach transcript_ids
-junctions = junctions.join(junc_tx_map, on=["chrom", "donor", "acceptor", "strand"], how="left")
+    junctions = pl.read_csv(args.junctions, separator="\t")
 
-# Build feature key matching BigBrain convention: chrom_donor_(acceptor-1)
-junctions = junctions.with_columns(
-    (pl.col("chrom") + "_" + pl.col("donor").cast(pl.String) + "_" +
-     (pl.col("acceptor") - 1).cast(pl.String)).alias("feature")
-)
+    junctions = junctions.join(junc_tx_map, on=["chrom", "donor", "acceptor", "strand"], how="left")
 
-sqtl = pl.read_csv(SQTL_FILE, separator="\t").select(META_COLS)
+    junctions = junctions.with_columns(
+        (pl.col("chrom") + "_" + pl.col("donor").cast(pl.String) + "_" +
+         (pl.col("acceptor") - 1).cast(pl.String)).alias("feature")
+    )
 
-matches = junctions.join(sqtl, on="feature", how="inner")
+    sqtl = pl.read_csv(args.sqtl_file, separator="\t").select(META_COLS)
 
-# Place transcript_ids right after feature for readability
-col_order = ["chrom", "donor", "acceptor", "strand", "feature", "transcript_ids"] + \
-            [c for c in matches.columns if c not in ("chrom", "donor", "acceptor", "strand", "feature", "transcript_ids")]
-matches = matches.select(col_order)
+    matches = junctions.join(sqtl, on="feature", how="inner")
 
-print(f"Novel coding junctions:          {len(junctions):,}")
-print(f"Matched to BigBrain sQTLs:       {len(matches):,}")
+    col_order = ["chrom", "donor", "acceptor", "strand", "feature", "transcript_ids"] + \
+                [c for c in matches.columns if c not in ("chrom", "donor", "acceptor", "strand", "feature", "transcript_ids")]
+    matches = matches.select(col_order)
 
-matches.write_csv(OUT_FILE, separator="\t")
-print(f"Written to {OUT_FILE}")
+    print(f"Novel coding junctions:          {len(junctions):,}")
+    print(f"Matched to BigBrain sQTLs:       {len(matches):,}")
+
+    matches.write_csv(args.output, separator="\t")
+    print(f"Written to {args.output}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,3 +1,4 @@
+include { AIM_2 } from "./subworkflows/local/aim_2/main.nf"
 include { GET_QUALITY_METRICS } from "./subworkflows/local/quality"
 include { ISOFORMSWITCH as ISOFORMSWITCH_ORF } from "./subworkflows/local/IsoformSwitchAnalyzeR/main.nf"
 include { ISOFORMSWITCH as ISOFORMSWITCH_all } from "./subworkflows/local/IsoformSwitchAnalyzeR/main.nf"
@@ -78,6 +79,8 @@ workflow {
     channel.value(file(params.ref_genome_fasta)).set { ref_genome_fasta }
     channel.value(file("from_collaborator/filtered_output.gtf")).set { collaborator_gtf }
     channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_transcripts.gtf")).set { final_gtf }
+    channel.value(file(params.bigbrain_sqtl)).set { bigbrain_sqtl }
+    channel.value(file(params.bigbrain_coloc)).set { bigbrain_coloc }
 
     supplement_collaborator_gtf(collaborator_gtf, final_gtf)
 
@@ -89,6 +92,8 @@ workflow {
     translate_supplemented_ORFs(ref_genome_fasta, supplement_collaborator_gtf.out.supplemented_gtf)
 
     ISOFORMSWITCH_all(channel.value("ALL"), prepare_supplemented_files.out.supplemented_expression, primer_to_sample, prepare_supplemented_files.out.supplemented_fasta, supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, final_classification, translate_supplemented_ORFs.out.supplemented_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
+
+    AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH_all.out.isoform_features_csv)
     // channel.fromPath(params.ribotie_training_outputs)
     //     .map { json_file ->
     //         def orfanage_mode = (json_file.baseName =~ /ribotie_training_outputs_(.+)/)[0][1]

@@ -298,4 +298,7 @@ workflow ISOFORMSWITCH {
     PlotIsoformConsequences(version, IsoseqsSwitchList.out.rds)
     volcano_plot(version, IsoseqsSwitchList.out.rds)
     prepare_shinyApp(version, IsoseqsSwitchList.out.rds)
+
+    emit:
+    isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv
 }
