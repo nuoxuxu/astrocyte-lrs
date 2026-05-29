@@ -31,8 +31,8 @@ myDesign <- primer_to_sample %>%
     select(-index) %>%
     mutate(condition = relevel(factor(condition), ref = "Unstim"))
 
-# Make sure that final_expression and orfanage_gtf have the same set of transcripts
-orfanage_tx <- rtracklayer::import(args$orfanage_gtf) %>%
+# Make sure that final_expression and predicted_cds_gtf have the same set of transcripts
+orfanage_tx <- rtracklayer::import(args$predicted_cds_gtf) %>%
     as_tibble() %>%
     filter(
         type == 'transcript'
@@ -62,7 +62,7 @@ resolve_gene_name <- function(compound_id) {
 }
 
 # Creat GRanges object for isoformExonAnnoation
-isoformExonAnnoation <- rtracklayer::import(args$orfanage_gtf)
+isoformExonAnnoation <- rtracklayer::import(args$predicted_cds_gtf)
 isoformExonAnnoation <- subset(isoformExonAnnoation, mcols(isoformExonAnnoation)$type=="exon")
 mcols(isoformExonAnnoation)$type <- NULL
 
@@ -87,7 +87,7 @@ IsoseqsSwitchList <- importRdata(
     fixStringTieAnnotationProblem = FALSE
 )
 
-IsoseqsSwitchList <- addORFfromGTF(IsoseqsSwitchList, args$orfanage_gtf)
+IsoseqsSwitchList <- addORFfromGTF(IsoseqsSwitchList, args$predicted_cds_gtf)
 
 # Pre-filtering
 # IsoseqsSwitchList <- preFilter(
