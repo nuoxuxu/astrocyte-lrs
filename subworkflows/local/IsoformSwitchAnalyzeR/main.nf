@@ -237,7 +237,7 @@ process volcano_plot {
 process prepare_shinyApp {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "astrocyte_vis_app/${version}/data"
+    storeDir "astrocyte_vis_app/data/${version}"
 
     input:
     val(version)
@@ -297,5 +297,5 @@ workflow ISOFORMSWITCH {
 
     PlotIsoformConsequences(version, IsoseqsSwitchList.out.rds)
     volcano_plot(version, IsoseqsSwitchList.out.rds)
-    // prepare_shinyApp(version, IsoseqsSwitchList.out.rds)
+    prepare_shinyApp(version, IsoseqsSwitchList.out.rds)
 }
