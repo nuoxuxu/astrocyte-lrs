@@ -10,7 +10,8 @@ Steps:
      first base of the downstream exon to the last base of the intron, matching
      the BigBrain coordinate convention)
   4. Join on the feature column of the BigBrain cis-sQTL file
-  5. Keep feature, transcript_ids, gene/variant identifiers, and meta-analysis
+  5. Add IF column: max IF_overall across all transcripts carrying the junction
+  6. Keep feature, transcript_ids, IF, gene/variant identifiers, and meta-analysis
      statistics
 """
 
@@ -92,6 +93,7 @@ def main():
     parser.add_argument("predicted_cds_gtf", help="Predicted CDS GTF file")
     parser.add_argument("junctions", help="Novel coding junctions TSV (from novel_coding_junctions.py)")
     parser.add_argument("sqtl_file", help="BigBrain cis-sQTL TSV file")
+    parser.add_argument("iso_file", help="IsoformSwitchAnalyzeR isoformFeatures.csv")
     parser.add_argument("-o", "--output", default="novel_coding_junction_sqtl_matches.tsv",
                         help="Output TSV file (default: novel_coding_junction_sqtl_matches.tsv)")
     args = parser.parse_args()
@@ -112,8 +114,23 @@ def main():
 
     matches = junctions.join(sqtl, on="feature", how="inner")
 
-    col_order = ["chrom", "donor", "acceptor", "strand", "feature", "transcript_ids"] + \
-                [c for c in matches.columns if c not in ("chrom", "donor", "acceptor", "strand", "feature", "transcript_ids")]
+    iso = pl.read_csv(args.iso_file, null_values="NA")
+    iso_map = dict(zip(
+        iso["isoform_id"].to_list(),
+        iso["IF_overall"].to_list(),
+    ))
+
+    def max_if(tx_ids: str) -> float | None:
+        vals = [iso_map.get(tx.strip()) for tx in tx_ids.split(";")]
+        vals = [v for v in vals if v is not None]
+        return max(vals) if vals else None
+
+    matches = matches.with_columns(
+        pl.col("transcript_ids").map_elements(max_if, return_dtype=pl.Float64).alias("IF")
+    )
+
+    col_order = ["chrom", "donor", "acceptor", "strand", "feature", "transcript_ids", "IF"] + \
+                [c for c in matches.columns if c not in ("chrom", "donor", "acceptor", "strand", "feature", "transcript_ids", "IF")]
     matches = matches.select(col_order)
 
     print(f"Novel coding junctions:          {len(junctions):,}")

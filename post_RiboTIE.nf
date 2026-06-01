@@ -81,6 +81,8 @@ workflow {
     channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_transcripts.gtf")).set { final_gtf }
     channel.value(file(params.bigbrain_sqtl)).set { bigbrain_sqtl }
     channel.value(file(params.bigbrain_coloc)).set { bigbrain_coloc }
+    channel.value(file(params.leafcutter_sig)).set { leafcutter_sig }
+    channel.value(file(params.leafcutter_clu2gene)).set { leafcutter_clu2gene }
 
     supplement_collaborator_gtf(collaborator_gtf, final_gtf)
 
@@ -93,7 +95,7 @@ workflow {
 
     ISOFORMSWITCH_all(channel.value("ALL"), prepare_supplemented_files.out.supplemented_expression, primer_to_sample, prepare_supplemented_files.out.supplemented_fasta, supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, final_classification, translate_supplemented_ORFs.out.supplemented_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
 
-    AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH_all.out.isoform_features_csv)
+    AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH_all.out.isoform_features_csv, leafcutter_sig, leafcutter_clu2gene)
     // channel.fromPath(params.ribotie_training_outputs)
     //     .map { json_file ->
     //         def orfanage_mode = (json_file.baseName =~ /ribotie_training_outputs_(.+)/)[0][1]
