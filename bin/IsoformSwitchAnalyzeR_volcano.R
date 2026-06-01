@@ -57,10 +57,10 @@ p_dge <- ggplot(gene_df, aes(x = gene_log2_fold_change, y = neglog10q, colour = 
         na.rm = TRUE
     ) +
     scale_colour_manual(values = pal, name = NULL) +
-    annotate("text", x = Inf, y = Inf, hjust = -0.1, vjust = 1.5,
-             label = paste0("Increased: ", n_up),   colour = "#e41a1c", size = 3.5) +
-    annotate("text", x =  -Inf, y = Inf, hjust = 1.1, vjust = 1.5,
-             label = paste0("Decreased: ", n_down), colour = "#377eb8", size = 3.5) +
+    annotate("text", x = Inf, y = Inf, hjust = 1.1, vjust = 1.5,
+             label = paste0("Up: ", n_up, " genes"),   colour = "#e41a1c", size = 3.5) +
+    annotate("text", x =  -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+             label = paste0("Down: ", n_down, " genes"), colour = "#377eb8", size = 3.5) +
     labs(
         title    = "Differential Gene Expression  (Stim vs Unstim)",
         subtitle = paste0("DESeq2  |  padj < ", ALPHA, "  &  |log2FC| >= ", LFC_CUTOFF),
@@ -108,10 +108,10 @@ p_dtu <- ggplot(iso_df, aes(x = dIF, y = neglog10q, colour = direction)) +
         na.rm = TRUE
     ) +
     scale_colour_manual(values = pal2, name = NULL) +
-    annotate("text", x = Inf, y = Inf, hjust = -0.1, vjust = 1.5,
-             label = paste0("Increased: ", n_inc), colour = "#e41a1c", size = 3.5) +
-    annotate("text", x =  -Inf, y = Inf, hjust = 1.1, vjust = 1.5,
-             label = paste0("Decreased: ", n_dec), colour = "#377eb8", size = 3.5) +
+    annotate("text", x = Inf, y = Inf, hjust = 1.1, vjust = 1.5,
+             label = paste0("Increased: ", n_inc, " isoforms"), colour = "#e41a1c", size = 3.5) +
+    annotate("text", x =  -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+             label = paste0("Decreased: ", n_dec, " isoforms"), colour = "#377eb8", size = 3.5) +
     labs(
         title    = "Differential Transcript Usage  (Stim vs Unstim)",
         subtitle = paste0("DEXSeq  |  q < ", ALPHA, "  &  |dIF| >= ", DIF_CUTOFF),
@@ -157,10 +157,10 @@ p_iso_dge <- ggplot(iso_dge_df, aes(x = iso_log2_fold_change, y = neglog10q, col
         na.rm = TRUE
     ) +
     scale_colour_manual(values = pal, name = NULL) +
-    annotate("text", x = Inf, y = Inf, hjust = -0.1, vjust = 1.5,
-             label = paste0("Increased: ", n_iso_up),   colour = "#e41a1c", size = 3.5) +
-    annotate("text", x =  -Inf, y = Inf, hjust = 1.1, vjust = 1.5,
-             label = paste0("Decreased: ", n_iso_down), colour = "#377eb8", size = 3.5) +
+    annotate("text", x = Inf, y = Inf, hjust = 1.1, vjust = 1.5,
+             label = paste0("Up: ", n_iso_up, " isoforms"),   colour = "#e41a1c", size = 3.5) +
+    annotate("text", x =  -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+             label = paste0("Down: ", n_iso_down, " isoforms"), colour = "#377eb8", size = 3.5) +
     labs(
         title    = "Differential Isoform Expression  (Stim vs Unstim)",
         subtitle = paste0("DESeq2  |  padj < ", ALPHA, "  &  |log2FC| >= ", LFC_CUTOFF),
