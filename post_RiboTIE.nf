@@ -5,6 +5,7 @@ include { ISOFORMSWITCH as ISOFORMSWITCH_all } from "./subworkflows/local/Isofor
 include { RIBOTIE_POSTANALYSIS } from "./subworkflows/local/ribotie_postanalysis/main.nf"
 include { FILTER_RIBOTIE } from "./subworkflows/local/filter_ribotie/main.nf"
 include { CDS_LENGTH_DISTRIBUTION } from "./subworkflows/local/cds_length_distribution/main.nf"
+include { RUN_VEP } from "./subworkflows/local/vep/main.nf"
 
 process supplement_collaborator_gtf {
     conda "/scratch/nxu/astrocytes/env"
@@ -72,7 +73,6 @@ workflow {
     channel.value(file(params.annotation_gtf)).set { annotation_gtf }
     channel.value(file(params.primer_to_sample)).set { primer_to_sample }
     channel.value(file(params.pfamdb)).set { pfamdb }
-    // channel.value(file(params.PhyloCSFpp_db)).set { PhyloCSFpp_db }
     channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_transcripts.fasta")).set { final_fasta }
     channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_expression.parquet")).set { final_expression }
     channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_classification.parquet")).set { final_classification }
@@ -96,23 +96,13 @@ workflow {
     ISOFORMSWITCH_all(channel.value("ALL"), prepare_supplemented_files.out.supplemented_expression, primer_to_sample, prepare_supplemented_files.out.supplemented_fasta, supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, final_classification, translate_supplemented_ORFs.out.supplemented_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
 
     AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH_all.out.isoform_features_csv, leafcutter_sig, leafcutter_clu2gene)
-    // channel.fromPath(params.ribotie_training_outputs)
-    //     .map { json_file ->
-    //         def orfanage_mode = (json_file.baseName =~ /ribotie_training_outputs_(.+)/)[0][1]
-    //         def entries = new groovy.json.JsonSlurper().parse(json_file)
-    //         def merged_entry = entries.find { it.containsKey('ribotie_merged_gtf') }
-    //         tuple(orfanage_mode, file(merged_entry.ribotie_merged_gtf))
-    //     }
-    //     .set { ribotie_input_ch }
-
-    // ribotie_input_ch.filter { it[0] == "minlen" }.set{ ribotie_input_ch }
-
-    // CDS_LENGTH_DISTRIBUTION(ribotie_input_ch, ref_genome_fasta)
 
     FILTER_RIBOTIE(collaborator_gtf, final_fasta, final_expression, final_classification, ref_genome_fasta)
 
     ISOFORMSWITCH_ORF(channel.value("ORF"), FILTER_RIBOTIE.out.filtered_RiboTIE_expression, primer_to_sample, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, collaborator_gtf, annotation_gtf, FILTER_RIBOTIE.out.filtered_RiboTIE_classification, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
-    
-    // ISOFORMSWITCH_all(channel.value("ALL"), FILTER_RIBOTIE.out.filtered_RiboTIE_expression, primer_to_sample, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, collaborator_gtf, annotation_gtf, FILTER_RIBOTIE.out.filtered_RiboTIE_classification, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, file(params.Human_coding_transcripts_CDS), file(params.Human_noncoding_transcripts_RNA), file(params.Human_logitModel))
-    // RIBOTIE_POSTANALYSIS(params.ribotie_training_outputs, collaborator_gtf, FILTER_RIBOTIE.out.filtered_RiboTIE_expression)
+
+    //TODO: MAPS analysis for variants disruption ncORFs
+    // channel.value(file("/scratch/nxu/100KGP_splicing/data/gnomad/exomes/gnomad.exomes.v4.1.sites.chr16.vcf.bgz")).map { ["gnomad_exomes_chr16", it] }.set { vcf_ch }
+    // channel.value(file(params.vep_uorf_data)).set { vep_uorf_data }
+    // RUN_VEP(vcf_ch, vep_uorf_data, ref_genome_fasta, annotation_gtf)
 }
