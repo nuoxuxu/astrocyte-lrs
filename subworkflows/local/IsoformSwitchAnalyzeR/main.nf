@@ -4,7 +4,7 @@ process IsoseqsSwitchList {
     storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}"
 
     input:
-    tuple val(version), path(final_expression), path(predicted_cds_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf), path(cpat_results), path(pfam_results)
+    tuple val(version), path(final_expression), path(predicted_cds_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf)
 
     output:
     path("IsoformSwitchAnalyzeR.rds"), emit: rds
@@ -19,8 +19,6 @@ process IsoseqsSwitchList {
         --predicted_cds_gtf $predicted_cds_gtf \\
         --annotation_gtf $annotation_gtf \\
         --final_classification $final_classification \\
-        --cpat_results $cpat_results \\
-        --pfam_results $pfam_results \\
     """
 }
 
@@ -261,25 +259,8 @@ workflow ISOFORMSWITCH {
     predicted_cds_gtf
     annotation_gtf
     final_classification
-    translation_fasta
-    pfamdb
-    Human_coding_transcripts_CDS
-    Human_noncoding_transcripts_RNA
-    Human_logitModel
 
     main:
-
-    run_cpat(version, Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, final_fasta)
-    convert_cpat_format(version, run_cpat.out.ORF_prob_best_tsv)
-
-    split_FASTA(version, translation_fasta)
-    split_FASTA.out.flatten()
-        .combine(pfamdb)
-        .combine(version)
-        .map { fasta, pfam, ver -> tuple(ver, fasta, pfam) }
-    | pfam_scan
-    merge_pfam_results(version, pfam_scan.out.collect())
-    convert_pfam_scan_results(version, merge_pfam_results.out)
 
     final_expression
         .combine(predicted_cds_gtf)
@@ -287,11 +268,9 @@ workflow ISOFORMSWITCH {
         .combine(primer_to_sample)
         .combine(final_fasta)
         .combine(annotation_gtf)
-        .combine(convert_cpat_format.out)
-        .combine(convert_pfam_scan_results.out)
         .combine(version)
-        .map { expr, cds_gtf, classif, primer, fasta, annot, cpat, pfam, ver ->
-            tuple(ver, expr, cds_gtf, classif, primer, fasta, annot, cpat, pfam)
+        .map { expr, cds_gtf, classif, primer, fasta, annot, ver ->
+            tuple(ver, expr, cds_gtf, classif, primer, fasta, annot)
         }
     | IsoseqsSwitchList
 
