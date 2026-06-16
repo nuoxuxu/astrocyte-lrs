@@ -221,4 +221,24 @@ def read_fasta(fasta_file, gencode = False):
     
     # Convert to Polars DataFrame
     df = pl.DataFrame(sequences, schema=["transcript_id", "seq"], orient="row")
-    return df    
+    return df
+
+def build_CDS_group(gtf, group_by_col="transcript_id"):
+    """Extract CDS coordinate
+    """
+
+    CDS_group_df = gtf\
+        .filter(pl.col("feature") == "CDS")\
+        .group_by(pl.col(group_by_col))\
+        .agg(
+            pl.col("seqname").first(),
+            pl.col("start"),
+            pl.col("end"),
+            pl.col("strand").first(),
+        )
+
+    keys = set()
+    for row in CDS_group_df.iter_rows(named=True):
+        CDSs = tuple(sorted(zip(row["start"], row["end"])))
+        keys.add((row["seqname"], row["strand"], CDSs))
+    return keys

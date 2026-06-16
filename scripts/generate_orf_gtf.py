@@ -22,7 +22,7 @@ import pandas as pd
 import polars as pl
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from bin.src.trim_ribotish_stop_codon import trim_stop_codon, write_gtf
+from bin.trim_ribotish_stop_codon import trim_stop_codon
 
 DATA_DIR = Path("data")
 OUT_DIR = Path("data")
@@ -182,6 +182,8 @@ def process_study1(xlsx_path: Path, out_path: Path) -> None:
 def process_study2(xlsx_path: Path, out_path: Path) -> None:
     df = pd.read_excel(xlsx_path, sheet_name="Supplementary Table 2", header=0)
     print(f"Study 2: loaded {len(df)} ORFs")
+    df = df[df["primary_set"].astype(str).str.strip().str.lower() == "yes"].reset_index(drop=True)
+    print(f"Study 2: {len(df)} ORFs after filtering to primary_set == 'yes'")
 
     rows: list[dict] = []
     for _, row in df.iterrows():
@@ -212,11 +214,11 @@ def process_study2(xlsx_path: Path, out_path: Path) -> None:
     gtf_df = gtf_df.with_columns(
         pl.col("start").cast(pl.Int64),
         pl.col("end").cast(pl.Int64),
-        pl.col("attributes").str.extract(r'orf_id "([^"]+)"').alias("orf_id"),
+        pl.col("attributes").str.extract(r'orf_id "([^"]+)"').alias("transcript_id"),
     )
 
     n_before = gtf_df.filter(pl.col("feature") == "CDS").height
-    trimmed = trim_stop_codon(gtf_df, group_key="orf_id").drop("orf_id")
+    trimmed = trim_stop_codon(gtf_df).drop("transcript_id")
     n_after = trimmed.filter(pl.col("feature") == "CDS").height
     dropped = n_before - n_after
     print(f"Study 2: CDS rows {n_before} → {n_after}" +
@@ -238,10 +240,6 @@ def process_study2(xlsx_path: Path, out_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    process_study1(
-        xlsx_path=DATA_DIR / "41587_2022_1369_MOESM2_ESM.xlsx",
-        out_path=OUT_DIR / "study1_orfs.gtf",
-    )
     process_study2(
         xlsx_path=DATA_DIR / "media-1.xlsx",
         out_path=OUT_DIR / "study2_orfs.gtf",

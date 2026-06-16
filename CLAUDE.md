@@ -8,12 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Running the Pipeline
 
+The pipeline runs in three sequential entrypoints, connected by JSON manifests:
+
 ```bash
-# Main pipeline (HPC with SLURM)
+# 1. Main pipeline: preprocessing → RiboTIE database prep (HPC with SLURM)
 nextflow run main.nf -profile trillium
 
-# RiboTIE training (requires GPU)
+# 2. RiboTIE training/inference (requires GPU; consumes manifests from step 1)
 nextflow run RiboTIE.nf -profile trillium_gpu
+
+# 3. Post-RiboTIE downstream analysis (IsoformSwitch, aim_2, quality, summary table)
+nextflow run post_RiboTIE.nf -profile trillium
 
 # Local execution
 nextflow run main.nf -profile local
@@ -23,32 +28,52 @@ Profiles: `trillium` (local HPC), `trillium_gpu` (GPU jobs), `narval` (Narval cl
 
 ## Architecture
 
-### Pipeline Stages (main.nf)
+Subworkflows live in `subworkflows/local/<name>/main.nf`.
 
-The pipeline is a linear chain of subworkflows, each in `subworkflows/<name>/main.nf`:
+### Stage 1 — `main.nf` (transcript discovery → RiboTIE prep)
 
 ```
-PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI_AND_FILTER_BY_EXP → RUN_ORFANAGE → PREPARE_RIBOTIE
-                                                                         ↓
-                                                          GET_QUALITY_METRICS (PhyloCSF++, Pfam)
-                                                          ISOFORMSWITCH (R-based)
-                                                          RIBOTIE_VISUALIZATION
+PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI → FILTER_BY_EXPRESSION → RUN_ORFANAGE → PREPARE_RIBOTIE
 ```
 
 1. **preprocessing** - PacBio demux (skera → lima → refine) producing FLNC BAMs
 2. **isoseq** - Transcript clustering and genome alignment (cluster2 → pbmm2 → collapse)
 3. **oarfish** - Transcript quantification via minimap2 + oarfish
-4. **sqanti** - SQANTI3 QC/filtering + expression-based filtering with dual configs
-5. **orfanage** - ORF annotation and protein extraction
-6. **riboseq** - Ribo-seq alignment and RiboTIE database preparation
-7. **quality** - PhyloCSF++ conservation scores and Pfam domain scanning
-8. **IsoformSwitchAnalyzeR** - Differential isoform usage analysis (R)
-9. **visualization** - RiboTIE publication figures
+4. **sqanti** - SQANTI3 QC/filtering
+5. **filter_by_expression** - Expression-based filtering producing `mid_stringency` outputs
+6. **orfanage** - ORF annotation and protein extraction
+7. **prepare_ribotie** - Ribo-seq alignment and RiboTIE database (h5) preparation; writes JSON manifests to `nextflow_results/manifests/`
+
+### Stage 2 — `RiboTIE.nf` (GPU)
+
+RiboTIE training/inference, driven by the manifests written by stage 1.
+
+### Stage 3 — `post_RiboTIE.nf` (downstream analysis)
+
+**Inputs come from the `from_collaborator/` folder, not from a stage-2 output in this repo.** The RiboTIE ORF predictions were produced by a collaborator (the code that derived them is not in this repo). The two key files are:
+
+- `from_collaborator/ribotie_cpm1_3sample.csv` — per-ORF RiboTIE predictions (ORF_id, transcript_id, scores, start/stop codons, coordinates).
+- `from_collaborator/filtered_output.gtf` — GTF of the predicted ORFs (CDS/exon/start_codon/stop_codon features, keyed by `ORF_id`, where `transcript_id == ORF_id`).
+
+These were derived from the stage-1 `prepare_ribotie` output run through RiboTIE by the collaborator, so treat them as the authoritative ORF set for downstream analysis. Stage 3 also reuses stage-1 outputs (e.g. `final_*` under `nextflow_results/sqanti3/...`).
+
+Downstream flow:
+
+```
+supplement_collaborator_gtf → ISOFORMSWITCH (R) → AIM_2 (sQTL/coloc)
+                            → FILTER_RIBOTIE → SUMMARY_TABLE
+```
+
+- **IsoformSwitchAnalyzeR** - Differential isoform usage analysis (R); the `ALL2` run feeds the summary table
+- **aim_2** - Novel coding junctions and leafcutter/novel-junction sQTL–coloc matching
+- **filter_ribotie** - Filters RiboTIE ORFs/proteins for downstream scoring
+- **summary_table** - Per-ORF evidence table (`nextflow_results/summary_table/summary_table.tsv`); combines CPAT, Pfam, PhyloCSF++, GENCODE/Study2 novelty, IsoformSwitch metrics, sQTL coloc, and Ribo-seq concordance. Column meanings are documented in `docs/summary_table_columns.md`. Built by `bin/make_summary_table.py`.
+- Other available subworkflows in this stage: `quality` (GET_QUALITY_METRICS), `ribotie_postanalysis`, `cds_length_distribution`, `vep` (RUN_VEP).
 
 ### Key Design Patterns
 
 - **Single-filter strategy**: `min_reads` (default: 5) and `min_n_sample` (default: 2) define the expression filter applied as `mid_stringency`. Outputs are tagged with `param_set_name = "mid_stringency"` as a tuple element.
-- **JSON manifests**: Cross-workflow communication between `main.nf`, `post_RiboTIE,nf` and `RiboTIE.nf` via JSON files in `nextflow_results/manifests/`.
+- **JSON manifests**: Cross-workflow communication between `main.nf`, `RiboTIE.nf`, and `post_RiboTIE.nf` via JSON files in `nextflow_results/manifests/`.
 - **storeDir**: Processes use `storeDir` for persistent output caching (not Nextflow's default `publishDir`).
 - **Channel tuples**: Data flows as `[param_set_name, file]` tuples for tracking filter config provenance.
 

@@ -16,7 +16,7 @@ def get_base_id(tid):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("collaborator_gtf")
-    parser.add_argument("final_gtf")
+    parser.add_argument("orfanage_gtf")
     parser.add_argument("-o", "--output", default="supplemented_collaborator.gtf")
     args = parser.parse_args()
 
@@ -36,7 +36,7 @@ def main():
     with open(args.output, "w") as out:
         for line in collab_lines:
             out.write(line)
-        with open(args.final_gtf) as f:
+        with open(args.orfanage_gtf) as f:
             for line in f:
                 if line.startswith('#'):
                     continue
@@ -57,19 +57,19 @@ def main():
                 if '_' in tid:
                     result_underscore_tids.add(tid)
 
-    final_tids = set()
-    with open(args.final_gtf) as f:
+    orfanage_tids = set()
+    with open(args.orfanage_gtf) as f:
         for line in f:
             if line.startswith('#'):
                 continue
             tid = get_transcript_id(line)
             if tid:
-                final_tids.add(tid)
+                orfanage_tids.add(tid)
 
-    assert result_base_ids == final_tids, (
+    assert result_base_ids == orfanage_tids, (
         "Base ID set mismatch: "
-        + str(len(result_base_ids - final_tids)) + " extra in result, "
-        + str(len(final_tids - result_base_ids)) + " missing from result"
+        + str(len(result_base_ids - orfanage_tids)) + " extra in result, "
+        + str(len(orfanage_tids - result_base_ids)) + " missing from result"
     )
 
     assert result_underscore_tids == collab_tids, (
