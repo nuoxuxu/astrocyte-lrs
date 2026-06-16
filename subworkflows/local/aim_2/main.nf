@@ -133,8 +133,16 @@ workflow AIM_2 {
     matchSqtlColoc(sqtl_for_coloc, coloc_file)
     plotColocPie(matchSqtlColoc.out.coloc_matches, coloc_file)
 
+    // Split the labelled coloc-match tuples back into per-source channels
+    leafcutter_coloc = matchSqtlColoc.out.coloc_matches
+        .filter { it[0] == "leafcutter" }.map { it[1] }
+    novel_coding_junction_coloc = matchSqtlColoc.out.coloc_matches
+        .filter { it[0] == "novel_coding_junction" }.map { it[1] }
+
     emit:
     novel_junctions         = novelCodingJunctions.out.novel_junctions
     novel_sqtl_matches      = matchNovelJunctionsSqtl.out.sqtl_matches
     leafcutter_sqtl_matches = matchLeafcutterSqtl.out.sqtl_matches
+    leafcutter_coloc        = leafcutter_coloc
+    novel_coding_junction_coloc = novel_coding_junction_coloc
 }
