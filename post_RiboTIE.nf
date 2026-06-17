@@ -7,6 +7,23 @@ include { CDS_LENGTH_DISTRIBUTION } from "./subworkflows/local/cds_length_distri
 include { RUN_VEP } from "./subworkflows/local/vep/main.nf"
 include { SUMMARY_TABLE } from "./subworkflows/local/summary_table/main.nf"
 
+process fix_collaborator_gtf {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/supplement_collaborator_gtf"
+
+    input:
+    path(collaborator_gtf)
+
+    output:
+    path("filtered_output_fixed.gtf"), emit: fixed_gtf
+
+    script:
+    """
+    fix_collaborator_gtf.py $collaborator_gtf -o filtered_output_fixed.gtf
+    """
+}
+
 process supplement_collaborator_gtf {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
@@ -90,7 +107,9 @@ workflow {
     channel.value(file(params.pfamdb)).set { pfamdb }
     channel.value(file("data/study2_orfs.gtf")).set { study2_gtf }
 
-    supplement_collaborator_gtf(collaborator_gtf, orfanage_gtf)
+    fix_collaborator_gtf(collaborator_gtf)
+
+    supplement_collaborator_gtf(fix_collaborator_gtf.out.fixed_gtf, orfanage_gtf)
 
     supplement_collaborator_gtf.out.supplemented_gtf
         .combine(final_fasta)
@@ -103,9 +122,9 @@ workflow {
 
     AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH.out.isoform_features_csv, leafcutter_sig, leafcutter_clu2gene)
 
-    FILTER_RIBOTIE(collaborator_gtf, final_fasta, final_expression, final_classification, ref_genome_fasta)
+    FILTER_RIBOTIE(fix_collaborator_gtf.out.fixed_gtf, final_fasta, final_expression, final_classification, ref_genome_fasta)
 
-    SUMMARY_TABLE(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, collaborator_gtf, ribotie_cpm1_3sample, annotation_gtf, orfanage_gtf, final_classification, ISOFORMSWITCH.out.isoform_features_csv, study2_gtf, AIM_2.out.leafcutter_coloc, AIM_2.out.novel_coding_junction_coloc, concordant_csv)
+    SUMMARY_TABLE(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, fix_collaborator_gtf.out.fixed_gtf, ribotie_cpm1_3sample, annotation_gtf, orfanage_gtf, final_classification, ISOFORMSWITCH.out.isoform_features_csv, study2_gtf, AIM_2.out.leafcutter_coloc, AIM_2.out.novel_coding_junction_coloc, concordant_csv)
 
     //TODO: MAPS analysis for variants disruption ncORFs
     // channel.value(file("/scratch/nxu/100KGP_splicing/data/gnomad/exomes/gnomad.exomes.v4.1.sites.chr16.vcf.bgz")).map { ["gnomad_exomes_chr16", it] }.set { vcf_ch }
