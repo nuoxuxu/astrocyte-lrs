@@ -67,7 +67,10 @@ ui <- navbarPage(
           "dIF_cutoff",
           "dIFcutoff — minimum |dIF| to call a switch:",
           value = 0.1, min = 0, max = 1, step = 0.01
-        )
+        ),
+        hr(),
+        helpText("To view the genomic region of the selected gene in the UCSC Genome Browser, click the link below:"),
+        uiOutput("ucsc_link")
       ),
       mainPanel(
         uiOutput("switch_plot_ui")
@@ -121,6 +124,18 @@ server <- function(input, output, session) {
     input$dIF_cutoff  # ensure container re-renders when dIF threshold changes
     height <- max(500, 50 + n * 50)
     plotOutput("switch_plot", height = paste0(height, "px"))
+  })
+
+  output$ucsc_link <- renderUI({
+    req(input$switch_gene)
+    env <- dataset()
+    gene_exons <- env$exons[env$exons$gene_name == input$switch_gene]
+    validate(need(length(gene_exons) > 0, "No exon data for this gene."))
+    chrom <- as.character(seqnames(gene_exons))[1]
+    pos_start <- min(start(gene_exons))
+    pos_end   <- max(end(gene_exons))
+    url <- paste0("https://genome.ucsc.edu/s/nuoxuxu/asotryctes_ribo_seq?position=", chrom, ":", pos_start, "-", pos_end)
+    tags$a(href = url, "View in UCSC Genome Browser", target = "_blank")
   })
 
   output$switch_plot <- renderPlot({
