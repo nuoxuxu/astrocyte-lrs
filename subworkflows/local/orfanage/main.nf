@@ -1,7 +1,7 @@
 process runORFanage {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orfanage/${orfanage_mode}/mid_stringency"
+    storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
     tuple val(orfanage_mode), path(ref_genome_fasta), path(final_sample_gtf), path(annotation_gtf)
@@ -34,7 +34,7 @@ process runORFanage {
 process addNoncodingTx {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orfanage/${orfanage_mode}/mid_stringency"
+    storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
     tuple val(orfanage_mode), path(orfanage_gtf), path(final_transcripts_gtf)
@@ -54,7 +54,7 @@ process addNoncodingTx {
 process fixORFanageFormat {
     label "short_slurm_job"
     container "quay.io/biocontainers/agat:1.4.2--pl5321hdfd78af_0"
-    storeDir "nextflow_results/orfanage/${orfanage_mode}/mid_stringency"
+    storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
     path ref_genome_fasta
@@ -74,7 +74,7 @@ process fixORFanageFormat {
 process restoreAgatRemovedTx {
     label "short_slurm_job"
     conda "/scratch/nxu/astrocytes/env"
-    storeDir "nextflow_results/orfanage/${orfanage_mode}/mid_stringency"
+    storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
     tuple val(orfanage_mode), path(complete_orfanage_gtf), path(agat_output_gtf)
@@ -95,7 +95,7 @@ process restoreAgatRemovedTx {
 process translateORFs {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orfanage/${orfanage_mode}/mid_stringency"
+    storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
     path ref_genome_fasta
@@ -115,7 +115,7 @@ process translateORFs {
 process format_gtf_for_ribotie {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/orfanage/${orfanage_mode}/mid_stringency"
+    storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
     tuple val(orfanage_mode), path(orfanage_gtf), path(final_classification), path(annotation_gtf)

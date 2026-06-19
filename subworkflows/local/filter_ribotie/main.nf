@@ -1,7 +1,7 @@
 process FILTER_RIBOTIE_RESULTS {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/mid_stringency/filtered"
+    storeDir "nextflow_results/ribotie/filtered"
 
     input:
     tuple path(input_gtf), path(input_fasta), path(input_expression), path(input_classification)
@@ -28,7 +28,7 @@ process FILTER_RIBOTIE_RESULTS {
 process translateORFs {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/ribotie/mid_stringency/filtered"
+    storeDir "nextflow_results/ribotie/filtered"
 
     input:
     path ref_genome_fasta

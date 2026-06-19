@@ -1,7 +1,7 @@
 process phylocsfpp {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality/mid_stringency"
+    storeDir "nextflow_results/quality"
 
     input:
     tuple val(condition), path(ribotie_output_gtf), path(phyloCSF_db)

@@ -89,9 +89,9 @@ process translate_supplemented_ORFs {
 workflow {
     channel.value(file(params.annotation_gtf)).set { annotation_gtf }
     channel.value(file(params.primer_to_sample)).set { primer_to_sample }
-    channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_transcripts.fasta")).set { final_fasta }
-    channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_expression.parquet")).set { final_expression }
-    channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_classification.parquet")).set { final_classification }
+    channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/final_transcripts.fasta")).set { final_fasta }
+    channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/final_expression.parquet")).set { final_expression }
+    channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/final_classification.parquet")).set { final_classification }
     channel.value(file(params.ref_genome_fasta)).set { ref_genome_fasta }
     channel.value(file("from_collaborator/filtered_output.gtf")).set { collaborator_gtf }
     channel.value(file("from_collaborator/ribotie_cpm1_3sample.csv")).set { ribotie_cpm1_3sample }
@@ -100,7 +100,7 @@ workflow {
     channel.value(file(params.bigbrain_coloc)).set { bigbrain_coloc }
     channel.value(file(params.leafcutter_sig)).set { leafcutter_sig }
     channel.value(file(params.leafcutter_clu2gene)).set { leafcutter_clu2gene }
-    channel.value(file("nextflow_results/orfanage/minlen/mid_stringency/orfanage.gtf")).set { orfanage_gtf }
+    channel.value(file("nextflow_results/orfanage/minlen/orfanage.gtf")).set { orfanage_gtf }
     channel.value(file(params.Human_coding_transcripts_CDS)).set { Human_coding_transcripts_CDS }
     channel.value(file(params.Human_noncoding_transcripts_RNA)).set { Human_noncoding_transcripts_RNA }
     channel.value(file(params.Human_logitModel)).set { Human_logitModel }

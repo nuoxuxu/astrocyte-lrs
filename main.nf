@@ -27,28 +27,30 @@ workflow {
     SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name)
     FILTER_BY_EXPRESSION(RUN_OARFISH.out.oarfish_quant, SQANTI.out.filtered_classification, SQANTI.out.filtered_gtf, SQANTI.out.sqanti_corrected_fasta, annotation_gtf)
     RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf)
-    PREPARE_RIBOTIE(RUN_ORFANAGE.out.orfanage_gtf, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias, channel.fromPath(params.stimulation_labels))
+    gtf_for_ribotie = channel.of(["gencode", file(params.annotation_gtf)])
+        .concat(RUN_ORFANAGE.out.orfanage_gtf)
+    PREPARE_RIBOTIE(gtf_for_ribotie, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias, channel.fromPath(params.stimulation_labels))
 
     PREPARE_RIBOTIE.out.ribotie_db
-        .map { orfanage_mode, gtf_h5, ribotie_h5, mode ->
+        .map { input_gtf_name, gtf_h5, ribotie_h5, merged_or_separate ->
             def output = [
-                orfanage_mode: "${orfanage_mode}",
-                gtf_h5: "nextflow_results/prepare_ribotie/${orfanage_mode}/mid_stringency/${mode}/${gtf_h5.name}",
-                ribotie_h5: "nextflow_results/prepare_ribotie/${orfanage_mode}/mid_stringency/${mode}/${ribotie_h5.name}",
-                mode: "${mode}",
-                ribotie_yml: "nextflow_results/prepare_ribotie/${orfanage_mode}/mid_stringency/${mode}/RiboTIE.yml"
+                input_gtf_name: "${input_gtf_name}",
+                gtf_h5: "nextflow_results/prepare_ribotie/${input_gtf_name}/${merged_or_separate}/${gtf_h5.name}",
+                ribotie_h5: "nextflow_results/prepare_ribotie/${input_gtf_name}/${merged_or_separate}/${ribotie_h5.name}",
+                merged_or_separate: "${merged_or_separate}",
+                ribotie_yml: "nextflow_results/prepare_ribotie/${input_gtf_name}/${merged_or_separate}/RiboTIE.yml"
             ]
-            [orfanage_mode, groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([output]))]
+            [input_gtf_name, groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([output]))]
         }
-        .collectFile(storeDir: 'nextflow_results/manifests') { orfanage_mode, text ->
-            ["ribotie_training_inputs_${orfanage_mode}.json", text]
+        .collectFile(storeDir: 'nextflow_results/manifests') { input_gtf_name, text ->
+            ["ribotie_training_inputs_${input_gtf_name}.json", text]
         }
 
     PREPARE_RIBOTIE.out.ribotie_db
-        .map { orfanage_mode, _gtf_h5, _ribotie_h5, mode ->
-            def base_dir = "nextflow_results/ribotie/${orfanage_mode}/mid_stringency/${mode}"
+        .map { input_gtf_name, _gtf_h5, _ribotie_h5, merged_or_separate ->
+            def base_dir = "nextflow_results/ribotie/${input_gtf_name}/${merged_or_separate}"
             def entry = [:]
-            if (mode == "merged") {
+            if (merged_or_separate == "merged") {
                 entry += [
                     ribotie_merged_gtf: "${base_dir}/ribotie_res_merged.gtf",
                     ribotie_merged_csv: "${base_dir}/ribotie_res_merged.csv",
@@ -69,72 +71,25 @@ workflow {
                     ribotie_stim_novel_csv: "${base_dir}/ribotie_res_Stim.novel.csv",
                 ]
             }
-            [orfanage_mode, groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([entry]))]
+            [input_gtf_name, groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([entry]))]
         }
-        .collectFile(storeDir: 'nextflow_results/manifests') { orfanage_mode, text ->
-            ["ribotie_training_outputs_${orfanage_mode}.json", text]
+        .collectFile(storeDir: 'nextflow_results/manifests') { input_gtf_name, text ->
+            ["ribotie_training_outputs_${input_gtf_name}.json", text]
         }
 
     RUN_ORFANAGE.out.orfanage_gtf
         .join(RUN_ORFANAGE.out.orfanage_proteins)
-        .map { orfanage_mode, _orf_gtf, _orf_prot ->
+        .map { input_gtf_name, _orf_gtf, _orf_prot ->
             def output = [[
-                final_expression: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_expression.parquet",
-                final_fasta: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_transcripts.fasta",
-                final_classification: "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency/final_classification.parquet",
-                orfanage_gtf: "nextflow_results/orfanage/${orfanage_mode}/mid_stringency/orfanage_numbered_exons.gtf",
-                orfanage_proteins: "nextflow_results/orfanage/${orfanage_mode}/mid_stringency/orfanage_proteins.fasta",
+                final_expression: "nextflow_results/sqanti3/isoseq/sqanti3_filter/final_expression.parquet",
+                final_fasta: "nextflow_results/sqanti3/isoseq/sqanti3_filter/final_transcripts.fasta",
+                final_classification: "nextflow_results/sqanti3/isoseq/sqanti3_filter/final_classification.parquet",
+                orfanage_gtf: "nextflow_results/orfanage/${input_gtf_name}/orfanage_numbered_exons.gtf",
+                orfanage_proteins: "nextflow_results/orfanage/${input_gtf_name}/orfanage_proteins.fasta",
             ]]
-            [orfanage_mode, groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(output))]
+            [input_gtf_name, groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(output))]
         }
-        .collectFile(storeDir: 'nextflow_results/manifests') { orfanage_mode, text ->
-            ["main_pipeline_outputs_${orfanage_mode}.json", text]
+        .collectFile(storeDir: 'nextflow_results/manifests') { input_gtf_name, text ->
+            ["main_pipeline_outputs_${input_gtf_name}.json", text]
         }
-
-    // reads = PREPARE_RIBOTIE.out.transcriptome_bam
-    //     .map{
-    //         bam ->
-    //         def meta = [:]
-    //         meta.id = bam.name.minus("_Unmapped.Aligned.toTranscriptome.out.bam")
-    //         [ meta, bam ]
-    //     }
-    // ch_samplesheet = channel.value(file("data/samplesheet.csv", checkIfExists: true))
-
-    // transcript_fasta = FILTER_BY_EXPRESSION.out.final_fasta
-
-    // ref_genome_fasta
-    //     .combine(transcript_fasta)
-    //     | SALMON_INDEX
-
-    // QUANTIFY_PSEUDO_ALIGNMENT(
-    //     ch_samplesheet.map { [ [:], it ] },
-    //     reads,
-    //     SALMON_INDEX.out,
-    //     transcript_fasta,
-    //     FILTER_BY_EXPRESSION.out.final_transcripts_gtf,
-    //     "gene_id",
-    //     null,
-    //     "salmon",
-    //     null,
-    //     null,
-    //     null
-    // )
-
-    // channel.value(file(params.ch_contrasts_file)).set{ ch_contrasts_file }
-    // if (ch_contrasts_file){
-
-    //     ch_contrasts = ch_contrasts_file
-    //         .splitCsv ( header:true, sep:',' )
-    //         .map{[it, it.variable, it.reference, it.target]}
-
-    //     ch_samplesheet_matrix = QUANTIFY_PSEUDO_ALIGNMENT.out.counts_gene_length_scaled
-    //         .combine(ch_samplesheet)
-    //         .map{[it[0], it[2], it[1]]}
-    //         .first()
-
-    //     ANOTA2SEQ_ANOTA2SEQRUN(
-    //         ch_contrasts,
-    //         ch_samplesheet_matrix
-    //     )
-    // }
 }

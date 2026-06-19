@@ -1,18 +1,18 @@
 process RUN_RIBOTIE {
     module "python:gcc:arrow/19.0.1:rust"
     label "mid_slurm_job"
-    storeDir "nextflow_results/ribotie/${orfanage_mode}/mid_stringency/${mode}"
+    storeDir "nextflow_results/ribotie/${input_gtf_name}/${merged_or_separate}"
 
     input:
-    tuple val(orfanage_mode), path(gtf_h5), path(ribotie_h5), val(mode), path(ribotie_yml)
+    tuple val(input_gtf_name), path(gtf_h5), path(ribotie_h5), val(merged_or_separate), path(ribotie_yml)
 
     output:
-    tuple val(orfanage_mode), path("ribotie_res_${mode}.redundant.gtf"),                                              emit: redundant_gtf
-    path("ribotie_res_${mode}.redundant.csv"),                                                                        emit: redundant_csv
-    path("ribotie_res_${mode}.novel.gtf"),                                                                            emit: novel_gtf
-    path("ribotie_res_${mode}.novel.csv"),                                                                            emit: novel_csv
-    path("ribotie_res_${mode}.gtf"),                                                                                  emit: filtered_gtf
-    path("ribotie_res_${mode}.csv"),                                                                                  emit: filtered_csv
+    tuple val(input_gtf_name), path("ribotie_res_${merged_or_separate}.redundant.gtf"),                                              emit: redundant_gtf
+    path("ribotie_res_${merged_or_separate}.redundant.csv"),                                                                        emit: redundant_csv
+    path("ribotie_res_${merged_or_separate}.novel.gtf"),                                                                            emit: novel_gtf
+    path("ribotie_res_${merged_or_separate}.novel.csv"),                                                                            emit: novel_csv
+    path("ribotie_res_${merged_or_separate}.gtf"),                                                                                  emit: filtered_gtf
+    path("ribotie_res_${merged_or_separate}.csv"),                                                                                  emit: filtered_csv
     tuple path("ribotie_res_*.ckpt"), path("ribotie_res_*.npy"), path("ribotie_res_*.yml"), path("models"), path("multiqc"), emit: other
 
     script:
@@ -25,10 +25,10 @@ process RUN_RIBOTIE {
 process save_to_parquet {
     module "python:gcc:arrow/19.0.1:rust"
     label "short_slurm_job"
-    storeDir "export/ribotie/${orfanage_mode}"
+    storeDir "export/ribotie/${input_gtf_name}"
 
     input:
-    tuple val(orfanage_mode), path(input_gtf)
+    tuple val(input_gtf_name), path(input_gtf)
 
     output:
     path("${input_gtf.baseName}.parquet")
@@ -45,10 +45,10 @@ workflow {
         .splitJson()
         .map { entry ->
             tuple(
-                entry.orfanage_mode,
+                entry.input_gtf_name,
                 file(entry.gtf_h5),
                 file(entry.ribotie_h5),
-                entry.mode,
+                entry.merged_or_separate,
                 file(entry.ribotie_yml)
             )
         }

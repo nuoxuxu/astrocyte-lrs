@@ -1,7 +1,7 @@
 process filter_by_expression {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency"
+    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter"
 
     input:
     tuple path(oarfish_quant_files), path(filtered_classification), path(filtered_gtf), path(corrected_fasta), val(min_reads), val(min_n_sample)
@@ -24,7 +24,7 @@ process filter_by_expression {
 process GffCompare {
     module "StdEnv/2023:gffcompare/0.12.6"
     label "short_slurm_job"
-    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter/mid_stringency"
+    storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter"
 
     input:
     path annotation_gtf
@@ -53,14 +53,14 @@ process transcript_visualization {
     tuple path(final_classification), path(final_transcripts_gtf), path(final_expression)
 
     output:
-    path("mid_stringency_transcripts.pdf")
+    path("transcripts.pdf")
 
     script:
     """
     transcript_classification.R \\
         --classification $final_classification \\
         --expression $final_expression \\
-        --output "mid_stringency_transcripts.pdf"
+        --output "transcripts.pdf"
     """
 }
 
