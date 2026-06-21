@@ -69,12 +69,27 @@ supplement_collaborator_gtf → ISOFORMSWITCH (R) → AIM_2 (sQTL/coloc)
 - **aim_2** - Novel coding junctions and leafcutter/novel-junction sQTL–coloc matching
 - **filter_ribotie** - Filters RiboTIE ORFs/proteins for downstream scoring
 - **summary_table** - Per-ORF evidence table (`nextflow_results/summary_table/summary_table.tsv`); combines CPAT, Pfam, PhyloCSF++, GENCODE/Study2 novelty, IsoformSwitch metrics, sQTL coloc, and Ribo-seq concordance. Column meanings are documented in `docs/summary_table_columns.md`. Built by `bin/make_summary_table.py`.
-- Other available subworkflows in this stage: `quality` (GET_QUALITY_METRICS), `ribotie_postanalysis`, `cds_length_distribution`, `vep` (RUN_VEP).
+- Other available subworkflows in this stage: `ribotie_postanalysis`, `cds_length_distribution`, `vep` (RUN_VEP).
+
+### `quality.nf` — ORF quality metrics across parameter sets
+
+A standalone entrypoint (`nextflow run quality.nf -profile trillium`) that adds quality
+annotations to RiboTIE-predicted ORFs for each Iso-Seq parameter set (minlen, no_minlen).
+It pairs `ribotie_training_outputs_{name}.json` (RiboTIE predictions) with the matching
+`main_pipeline_outputs_{name}.json` (stage-1 reference data) by name. The `gencode`
+parameter set has no `main_pipeline_outputs_gencode.json` and is skipped in workflows that
+require Iso-Seq auxiliary data.
+
+Current workflows exported from `subworkflows/local/quality/main.nf`:
+- **`GET_QUALITY_METRICS`** - PhyloCSF++ conservation annotation of novel ORF GTFs
+- **`LABEL_ORF_TYPE_GENCODE`** - Adds `ORF_type_GENCODE` to the RiboTIE merged CSV by
+  projecting the GENCODE canonical CDS onto each Iso-Seq transcript (same logic as
+  `bin/make_summary_table.py`). Output: `nextflow_results/quality/{name}_orf_type_gencode.tsv`
 
 ### Key Design Patterns
 
 - **Single-filter strategy**: `min_reads` (default: 5) and `min_n_sample` (default: 2) define the expression filter. This is the only filter level; outputs go directly into their respective `nextflow_results/` subdirectories without a stringency-level subfolder.
-- **JSON manifests**: Cross-workflow communication between `main.nf`, `RiboTIE.nf`, and `post_RiboTIE.nf` via JSON files in `nextflow_results/manifests/`.
+- **JSON manifests**: Cross-workflow communication between `main.nf`, `RiboTIE.nf`, `post_RiboTIE.nf`, and `quality.nf` via JSON files in `nextflow_results/manifests/`. Two manifest types exist per parameter set (minlen, no_minlen): `main_pipeline_outputs_{name}.json` (stage-1 outputs: orfanage_gtf, final_classification, final_fasta, final_expression) and `ribotie_training_outputs_{name}.json` (RiboTIE predictions: ribotie_merged_csv/gtf and novel/redundant variants). A `ribotie_training_outputs_gencode.json` also exists for the GENCODE-reference RiboTIE run but has no matching `main_pipeline_outputs_gencode.json`.
 - **storeDir**: Processes use `storeDir` for persistent output caching (not Nextflow's default `publishDir`).
 
 Process labels control SLURM resource allocation: `short_slurm_job` (1h), `mid_slurm_job` (4h), `long_slurm_job` (24h).

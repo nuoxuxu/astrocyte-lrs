@@ -1,5 +1,4 @@
 include { AIM_2 } from "./subworkflows/local/aim_2/main.nf"
-include { GET_QUALITY_METRICS } from "./subworkflows/local/quality"
 include { ISOFORMSWITCH } from "./subworkflows/local/IsoformSwitchAnalyzeR/main.nf"
 include { RIBOTIE_POSTANALYSIS } from "./subworkflows/local/ribotie_postanalysis/main.nf"
 include { FILTER_RIBOTIE } from "./subworkflows/local/filter_ribotie/main.nf"
