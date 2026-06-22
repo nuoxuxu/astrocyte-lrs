@@ -41,7 +41,7 @@ process label_orf_type_gencode {
 process convert_gtf_to_orbl {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality"
+    storeDir "nextflow_results/quality/ORBL"
 
     input:
     tuple val(name), path(ribotie_gtf)
@@ -61,7 +61,7 @@ process convert_gtf_to_orbl {
 process split_orbl_input {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-
+    storeDir "nextflow_results/quality/ORBL/input_chunks"
     input:
     tuple val(name), path(orbl_input)
 
@@ -84,7 +84,7 @@ process split_orbl_input {
 
 process run_orbl {
     // No label — runs on login node where internet access is available
-    storeDir "nextflow_results/quality"
+    storeDir "nextflow_results/quality/ORBL/output_chunks"
 
     input:
     tuple val(name), path(orbl_input), val(alignment_set)
@@ -106,7 +106,7 @@ process run_orbl {
 process merge_orbl_chunks {
     conda "/scratch/nxu/astrocytes/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality"
+    storeDir "nextflow_results/quality/ORBL"
 
     input:
     tuple val(name), path(orbl_chunks)
@@ -159,14 +159,19 @@ process merge_orbl_quality {
     storeDir "nextflow_results/quality"
 
     input:
-    tuple val(name), path(orf_type_gencode), path(orbl_output)
+    tuple val(name), path(orf_type_gencode), path(orbl_output),
+          path(ribotie_csv), path(final_classification), path(gencode_ribotie_csv, stageAs: 'gencode_ribotie_res_merged.csv')
 
     output:
     tuple val(name), path("${name}_quality_metrics.tsv"), emit: quality_metrics
 
     script:
     """
-    merge_orbl_quality.py $orf_type_gencode $orbl_output -o ${name}_quality_metrics.tsv
+    merge_orbl_quality.py $orf_type_gencode $orbl_output \
+        --ribotie-csv $ribotie_csv \
+        --gencode-ribotie $gencode_ribotie_csv \
+        --classification $final_classification \
+        -o ${name}_quality_metrics.tsv
     """
 }
 
@@ -236,9 +241,28 @@ workflow LABEL_ORF_TYPE_GENCODE {
         .groupTuple()
         | merge_orbl_chunks
 
-    // Merge: join GENCODE label output and ORBL output by name
+    // Extract GENCODE ribotie CSV for GENCODE label matching
+    channel.fromPath(ribotie_training_outputs)
+        .map { f ->
+            def name = f.baseName.replaceAll(/^ribotie_training_outputs_/, '')
+            if (name == 'gencode') {
+                def entry = new groovy.json.JsonSlurper().parseText(f.text)[0]
+                tuple(file(entry.ribotie_merged_csv))
+            }
+        }
+        .first()
+        .set { gencode_ribotie_csv }
+
+    // Merge: join GENCODE label output, ORBL output, ribotie data, and classification by name
     label_orf_type_gencode.out.orf_type_gencode
         .join(merge_orbl_chunks.out.orbl_output)
+        .join(combined_ch.map { name, csv, gtf, orfanage, clf ->
+            tuple(name, csv, clf)
+        })
+        .combine(gencode_ribotie_csv)
+        .map { name, orf_type, orbl_out, ribotie_c, clf, gencode_rib ->
+            tuple(name, orf_type, orbl_out, ribotie_c, clf, gencode_rib)
+        }
         | merge_orbl_quality
 
     // Add biotype_with_frameshift column using GENCODE-projected frame
