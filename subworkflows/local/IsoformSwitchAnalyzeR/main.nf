@@ -7,7 +7,7 @@ process IsoseqsSwitchList {
     tuple val(version), path(final_expression), path(predicted_cds_gtf), path(final_classification), path(primer_to_sample), path(final_fasta), path(annotation_gtf)
 
     output:
-    path("IsoformSwitchAnalyzeR.rds"), emit: rds
+    tuple val(version), path("IsoformSwitchAnalyzeR.rds"), emit: rds
     path("isoformFeatures.csv"), emit: isoform_features_csv
 
     script:
@@ -103,9 +103,45 @@ workflow ISOFORMSWITCH {
         }
     | IsoseqsSwitchList
 
-    PlotIsoformConsequences(version, IsoseqsSwitchList.out.rds)
-    volcano_plot(version, IsoseqsSwitchList.out.rds)
-    prepare_shinyApp(version, IsoseqsSwitchList.out.rds)
+    IsoseqsSwitchList.out.rds
+        .multiMap { ver, rds ->
+            versions: ver
+            rdss: rds
+        }
+        .set { split_rds }
+
+    PlotIsoformConsequences(split_rds.versions, split_rds.rdss)
+    volcano_plot(split_rds.versions, split_rds.rdss)
+    prepare_shinyApp(split_rds.versions, split_rds.rdss)
+
+    emit:
+    isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv
+}
+
+workflow ISOFORMSWITCH_MULTI {
+    take:
+    isoform_ch
+    primer_to_sample
+
+    main:
+
+    isoform_ch
+        .combine(primer_to_sample)
+        .map { ver, expr, cds_gtf, classif, fasta, annot, primer ->
+            tuple(ver, expr, cds_gtf, classif, primer, fasta, annot)
+        }
+    | IsoseqsSwitchList
+
+    IsoseqsSwitchList.out.rds
+        .multiMap { ver, rds ->
+            versions: ver
+            rdss: rds
+        }
+        .set { split_rds }
+
+    PlotIsoformConsequences(split_rds.versions, split_rds.rdss)
+    volcano_plot(split_rds.versions, split_rds.rdss)
+    prepare_shinyApp(split_rds.versions, split_rds.rdss)
 
     emit:
     isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv
