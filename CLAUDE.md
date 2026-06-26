@@ -84,7 +84,36 @@ Current workflows exported from `subworkflows/local/quality/main.nf`:
 - **`GET_QUALITY_METRICS`** - PhyloCSF++ conservation annotation of novel ORF GTFs
 - **`LABEL_ORF_TYPE_GENCODE`** - Adds `ORF_type_GENCODE` to the RiboTIE merged CSV by
   projecting the GENCODE canonical CDS onto each Iso-Seq transcript (same logic as
-  `bin/make_summary_table.py`). Output: `nextflow_results/quality/{name}_orf_type_gencode.tsv`
+  `bin/make_summary_table.py`). Output: `nextflow_results/quality/{name}_orf_type_gencode.tsv`.
+  Also produces `{name}_final_quality_metrics.tsv` with `ORF_type_GENCODE` inserted between
+  `ORF_type_ORFanage` and `ORBLv` in the riboseq quality metrics table.
+
+#### Three-tier canonical CDS lookup (`bin/label_orf_type_gencode.py`)
+
+For each Iso-Seq transcript, the script resolves the corresponding GENCODE canonical CDS
+via a prioritised lookup hierarchy before running `project_gencode_cds` / `classify_orf_type`:
+
+| Tier | Source | Condition |
+|------|--------|-----------|
+| 1 | `orfanage_template` attribute in `orfanage.gtf` | Transcript appears in the plain (non-numbered-exons) orfanage GTF with an `orfanage_template` attribute |
+| 2 | `associated_transcript` from SQANTI3 `final_classification.parquet` | `associated_transcript` is not `'novel'` |
+| 3 | MANE_Select transcript for `associated_gene` in GENCODE | `associated_transcript == 'novel'` and the gene has a MANE_Select transcript |
+
+ENSEMBL version suffixes are stripped before all lookups (e.g. `ENST00000361390.2` → `ENST00000361390`) so that version mismatches between sources do not cause false misses.
+
+If the resolved ENST has no CDS annotation in GENCODE, the ORF receives a `no_template_*` label instead of being classified. All special-case labels:
+
+| Label | Condition |
+|-------|-----------|
+| `no_template_fusion` | `associated_gene` matches `ENSG…_ENSG…` pattern (fusion transcript) |
+| `no_template_novel_gene` | `associated_gene` starts with `novelGene_` |
+| `no_template_unknown_gene` | transcript not found in `final_classification` |
+| `no_template_no_MANE_Select` | `associated_transcript == 'novel'` but no MANE_Select exists for the gene |
+| `no_template_orfanage_template_non_coding` | Tier-1 ENST found but has no CDS in GENCODE |
+| `no_template_associated_transcript_non_coding` | Tier-2 ENST found but has no CDS in GENCODE |
+| `no_template_associated_MANE_Select_non_coding` | Tier-3 MANE_Select ENST found but has no CDS in GENCODE |
+
+Plain orfanage GTF paths are hardcoded in `nextflow.config` as `params.orfanage_gtf_no_minlen` and `params.orfanage_gtf_minlen`.
 
 ### Key Design Patterns
 
