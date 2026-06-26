@@ -1,5 +1,5 @@
 process fofn {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/prepare/fofn"
     input:
@@ -15,7 +15,7 @@ process fofn {
 }
 
 process cluster {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/prepare/cluster"
     input:
@@ -34,7 +34,7 @@ process cluster {
 }
 
 process pbmm2 {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/align/long_read/pbmm2"
     input:
@@ -69,7 +69,7 @@ process merge_aligned_bams {
 }
 
 process collapse_and_sort {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/discover/isoseq"
     input:

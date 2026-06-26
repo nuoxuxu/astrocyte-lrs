@@ -1,5 +1,5 @@
 process plot_ribotie_figures {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/visualization"
 

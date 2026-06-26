@@ -1,5 +1,5 @@
 process extract_protein_sequences {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/cds_length_distribution/${orfanage_mode}"
 
@@ -18,7 +18,7 @@ process extract_protein_sequences {
 }
 
 process plot_cds_length_distribution {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/cds_length_distribution"
 

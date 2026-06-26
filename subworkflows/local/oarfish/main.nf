@@ -1,5 +1,5 @@
 process extract_transcriptome {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "${params.outdir}/prepare/extract_transcriptome"
 
@@ -35,7 +35,7 @@ process merge_flnc_bams {
 }
 
 process minimap2_transcriptome {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "mid_slurm_job"
     storeDir "nextflow_results/align/long_read/minimap2_transcriptome"
 
@@ -57,7 +57,7 @@ process minimap2_transcriptome {
 }
 
 process convert_flnc_bam_to_fastqz {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/prepare/convert_ubam_to_fastqz"
 
@@ -74,7 +74,7 @@ process convert_flnc_bam_to_fastqz {
 }
 
 process run_oarfish {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/quantify/isoseq/oarfish"
 

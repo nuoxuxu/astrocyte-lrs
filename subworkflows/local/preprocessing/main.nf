@@ -1,5 +1,5 @@
 process skera {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/prepare/skera"
     input:
@@ -19,7 +19,7 @@ process skera {
 }
 
 process lima {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/prepare/lima"
     input:
@@ -41,7 +41,7 @@ process lima {
 }
 
 process refine {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/prepare/refine"
     input:

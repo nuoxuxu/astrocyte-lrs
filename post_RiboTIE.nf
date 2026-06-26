@@ -7,7 +7,7 @@ include { RUN_VEP } from "./subworkflows/local/vep/main.nf"
 include { SUMMARY_TABLE } from "./subworkflows/local/summary_table/main.nf"
 
 process fix_collaborator_gtf {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/supplement_collaborator_gtf"
 
@@ -24,7 +24,7 @@ process fix_collaborator_gtf {
 }
 
 process supplement_collaborator_gtf {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/supplement_collaborator_gtf"
 
@@ -66,7 +66,7 @@ process prepare_supplemented_files {
 }
 
 process translate_supplemented_ORFs {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/supplement_collaborator_gtf"
 

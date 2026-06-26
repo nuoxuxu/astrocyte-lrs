@@ -1,5 +1,5 @@
 process phylocsfpp {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/quality"
 
@@ -15,33 +15,10 @@ process phylocsfpp {
     """
 }
 
-process label_orf_type_gencode {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/quality"
-
-    input:
-    tuple val(name), path(ribotie_csv), path(annotation_gtf), path(orfanage_gtf), path(final_classification)
-
-    output:
-    tuple val(name), path("${name}_orf_type_gencode.tsv"), emit: orf_type_gencode
-
-    script:
-    """
-    export POLARS_MAX_THREADS=1
-    label_orf_type_gencode.py \\
-        $ribotie_csv \\
-        $annotation_gtf \\
-        $orfanage_gtf \\
-        $final_classification \\
-        -o ${name}_orf_type_gencode.tsv
-    """
-}
-
 process convert_gtf_to_orbl {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality"
+    storeDir "nextflow_results/quality/ORBL"
 
     input:
     tuple val(name), path(ribotie_gtf)
@@ -59,8 +36,9 @@ process convert_gtf_to_orbl {
 }
 
 process split_orbl_input {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env/"
     label "short_slurm_job"
+    storeDir "nextflow_results/quality/ORBL/input_chunks"
 
     input:
     tuple val(name), path(orbl_input)
@@ -84,7 +62,7 @@ process split_orbl_input {
 
 process run_orbl {
     // No label — runs on login node where internet access is available
-    storeDir "nextflow_results/quality"
+    storeDir "nextflow_results/quality/ORBL/output_chunks"
 
     input:
     tuple val(name), path(orbl_input), val(alignment_set)
@@ -104,9 +82,9 @@ process run_orbl {
 }
 
 process merge_orbl_chunks {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
-    storeDir "nextflow_results/quality"
+    storeDir "nextflow_results/quality/ORBL"
 
     input:
     tuple val(name), path(orbl_chunks)
@@ -129,44 +107,149 @@ process merge_orbl_chunks {
 }
 
 process add_biotype_with_frameshift {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/quality"
 
     input:
-    tuple val(name), path(quality_metrics), path(ribotie_csv),
-          path(orfanage_gtf), path(final_classification), path(annotation_gtf)
+    tuple val(name), path(quality_metrics), path(ribotie_csv)
 
     output:
     tuple val(name), path("${name}_quality_metrics_biotype.tsv"), emit: quality_metrics
 
     script:
     """
-    export POLARS_MAX_THREADS=1
     add_biotype_with_frameshift.py \\
         $quality_metrics \\
         $ribotie_csv \\
-        $annotation_gtf \\
-        $orfanage_gtf \\
-        $final_classification \\
         -o ${name}_quality_metrics_biotype.tsv
     """
 }
 
-process merge_orbl_quality {
-    conda "/scratch/nxu/astrocytes/env"
+process annotate_is_novel {
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/quality"
 
     input:
-    tuple val(name), path(orf_type_gencode), path(orbl_output)
+    tuple val(name), path(quality_metrics), path(ribotie_gtf), path(final_classification), path(annotation_gtf)
+
+    output:
+    tuple val(name), path("${name}_quality_metrics_novel.tsv"), emit: quality_metrics
+
+    script:
+    """
+    export POLARS_MAX_THREADS=1
+    annotate_is_novel.py \\
+        $quality_metrics \\
+        $ribotie_gtf \\
+        $final_classification \\
+        $annotation_gtf \\
+        -o ${name}_quality_metrics_novel.tsv
+    """
+}
+
+process merge_orbl_quality {
+    conda "/scratch/nxu/astrocyte-lrs/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality"
+
+    input:
+    tuple val(name), path(ribotie_csv), path(orbl_output)
 
     output:
     tuple val(name), path("${name}_quality_metrics.tsv"), emit: quality_metrics
 
     script:
     """
-    merge_orbl_quality.py $orf_type_gencode $orbl_output -o ${name}_quality_metrics.tsv
+    merge_orbl_quality.py $ribotie_csv $orbl_output -o ${name}_quality_metrics.tsv
+    """
+}
+
+process label_orf_type_gencode {
+    conda "/scratch/nxu/astrocyte-lrs/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality"
+
+    input:
+    tuple val(name), path(ribotie_csv), path(orfanage_numbered_exons_gtf),
+          path(final_classification), path(orfanage_plain_gtf), path(annotation_gtf)
+
+    output:
+    tuple val(name), path("${name}_orf_type_gencode.tsv")
+
+    script:
+    """
+    export POLARS_MAX_THREADS=1
+    label_orf_type_gencode.py \\
+        $ribotie_csv \\
+        $annotation_gtf \\
+        $orfanage_numbered_exons_gtf \\
+        $final_classification \\
+        $orfanage_plain_gtf \\
+        -o ${name}_orf_type_gencode.tsv
+    """
+}
+
+process add_riboseq_coverage {
+    conda "/scratch/nxu/astrocyte-lrs/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality"
+
+    input:
+    tuple val(name), path(quality_metrics)
+
+    output:
+    tuple val(name), path("${name}_quality_metrics_riboseq.tsv"), emit: quality_metrics
+
+    script:
+    """
+    add_riboseq_coverage.py \\
+        $quality_metrics \\
+        ${params.riboseq_bw} \\
+        --bigwig-tool ${params.bigwig_average_over_bed} \\
+        -o ${name}_quality_metrics_riboseq.tsv
+    """
+}
+
+process merge_orf_type_gencode {
+    conda "/scratch/nxu/astrocyte-lrs/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality"
+
+    input:
+    tuple val(name), path(quality_metrics_riboseq), path(orf_type_gencode)
+
+    output:
+    tuple val(name), path("${name}_final_quality_metrics.tsv"), emit: final_quality_metrics
+
+    script:
+    """
+    export POLARS_MAX_THREADS=1
+    merge_orf_type_gencode.py \\
+        $quality_metrics_riboseq \\
+        $orf_type_gencode \\
+        -o ${name}_final_quality_metrics.tsv
+    """
+}
+
+process gtf_to_bigbed {
+    conda "/scratch/nxu/astrocyte-lrs/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality/UCSC"
+
+    input:
+    tuple val(track_label), path(gtf)
+
+    output:
+    path("${track_label}.bb")
+
+    script:
+    """
+    gtf_to_bed12.py $gtf tmp.bed
+    awk 'NR==FNR{valid[\$1]=1; next} \$1 in valid' ${params.chrom_sizes} tmp.bed \\
+        | sort -k1,1 -k2,2n > sorted.bed
+    /home/nxu/miniforge3/bin/bedToBigBed -type=bed12 sorted.bed ${params.chrom_sizes} ${track_label}.bb
     """
 }
 
@@ -213,12 +296,6 @@ workflow LABEL_ORF_TYPE_GENCODE {
         .join(main_outputs_ch)
         .set { combined_ch }
 
-    // GENCODE ORF type labeling
-    combined_ch
-        .combine(annotation_gtf)
-        .map { name, csv, gtf, orfanage, clf, anno -> tuple(name, csv, anno, orfanage, clf) }
-        | label_orf_type_gencode
-
     // ORBL scoring chain
     combined_ch
         .map { name, csv, gtf, orfanage, clf -> tuple(name, gtf) }
@@ -236,20 +313,51 @@ workflow LABEL_ORF_TYPE_GENCODE {
         .groupTuple()
         | merge_orbl_chunks
 
-    // Merge: join GENCODE label output and ORBL output by name
-    label_orf_type_gencode.out.orf_type_gencode
+    // Merge: join RiboTIE CSV and ORBL output by name
+    combined_ch
+        .map { name, csv, gtf, orfanage, clf -> tuple(name, csv) }
         .join(merge_orbl_chunks.out.orbl_output)
         | merge_orbl_quality
 
-    // Add biotype_with_frameshift column using GENCODE-projected frame
+    // Add biotype_with_frameshift using pre-computed frame_wrt_canonical_TIS from RiboTIE CSV
     merge_orbl_quality.out.quality_metrics
-        .join(combined_ch.map { name, csv, gtf, orfanage, clf ->
-            tuple(name, csv, orfanage, clf)
-        })
-        .combine(annotation_gtf)
+        .join(combined_ch.map { name, csv, gtf, orfanage, clf -> tuple(name, csv) })
         | add_biotype_with_frameshift
 
+    // Annotate is_novel: 1 if any CDS segment overlaps a non-GENCODE-exon region
+    add_biotype_with_frameshift.out.quality_metrics
+        .join(combined_ch.map { name, csv, gtf, orfanage, clf -> tuple(name, gtf, clf) })
+        .combine(annotation_gtf)
+        | annotate_is_novel
+
+    // Add Ribo-seq coverage over novel regions
+    annotate_is_novel.out.quality_metrics
+        | add_riboseq_coverage
+
+    // GTF → bigBed: RiboTIE and ORFanage (mix into one channel; gencode excluded by combined_ch inner join)
+    combined_ch
+        .map { name, csv, gtf, orfanage, clf -> tuple("${name}_ribotie", gtf) }
+        .mix(combined_ch.map { name, csv, gtf, orfanage, clf -> tuple("${name}_orfanage", orfanage) })
+        | gtf_to_bigbed
+
+    // Label ORF types against GENCODE canonical CDS
+    channel.of(
+        tuple('no_minlen', file(params.orfanage_gtf_no_minlen)),
+        tuple('minlen',    file(params.orfanage_gtf_minlen))
+    ).set { orfanage_plain_ch }
+
+    combined_ch
+        .map { name, csv, gtf, orfanage, clf -> tuple(name, csv, orfanage, clf) }
+        .join(orfanage_plain_ch)
+        .combine(annotation_gtf)
+        | label_orf_type_gencode
+
+    // Merge ORF_type_GENCODE column into the riboseq quality metrics
+    add_riboseq_coverage.out.quality_metrics
+        .join(label_orf_type_gencode.out)
+        | merge_orf_type_gencode
+
     emit:
-    quality_metrics  = add_biotype_with_frameshift.out.quality_metrics
-    orf_type_gencode = label_orf_type_gencode.out.orf_type_gencode
+    quality_metrics = add_riboseq_coverage.out.quality_metrics
+    final_quality_metrics = merge_orf_type_gencode.out.final_quality_metrics
 }

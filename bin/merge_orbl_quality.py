@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Merge ORBLv scores from orbl.py output into the orf_type_gencode TSV.
+"""Merge ORBLv scores from orbl.py output into the RiboTIE CSV.
 
 Usage:
-    merge_orbl_quality.py  orf_type_gencode.tsv  orbl_output.tsv  -o quality_metrics.tsv
+    merge_orbl_quality.py  ribotie.csv  orbl_output.tsv  -o quality_metrics.tsv
 
 Joins on ORF_id, appending the ORBLv column. ORFs absent from the ORBL output
-receive 'NA'.
+receive 'NA'. The ORF_type column from the RiboTIE CSV is passed through as
+ORF_type_ORFanage.
 """
 import argparse
 import csv
@@ -13,12 +14,11 @@ import csv
 
 def main():
     parser = argparse.ArgumentParser(description='Merge ORBLv scores into quality TSV.')
-    parser.add_argument('orf_type_gencode', help='orf_type_gencode.tsv (ORF_id, transcript_id, ORF_type_GENCODE)')
+    parser.add_argument('ribotie_csv', help='RiboTIE CSV (ORF_id, transcript_id, ORF_type, ...)')
     parser.add_argument('orbl_output', help='orbl.py output TSV (with --header --extraFields ORF_id,...)')
     parser.add_argument('-o', '--output', default='quality_metrics.tsv')
     args = parser.parse_args()
 
-    # Build ORF_id -> ORBLv from orbl output (header present)
     orblv = {}
     with open(args.orbl_output) as f:
         reader = csv.DictReader(f, delimiter='\t')
@@ -27,17 +27,20 @@ def main():
             if orf_id:
                 orblv[orf_id] = row.get('ORBLv', 'NA')
 
-    with open(args.orf_type_gencode) as f_in, open(args.output, 'w', newline='') as f_out:
-        reader = csv.DictReader(f_in, delimiter='\t')
+    with open(args.ribotie_csv) as f_in, open(args.output, 'w', newline='') as f_out:
+        reader = csv.DictReader(f_in)
         writer = csv.writer(f_out, delimiter='\t')
-        writer.writerow(['ORF_id', 'transcript_id', 'ORF_type_GENCODE', 'ORBLv'])
+        writer.writerow(['ORF_id', 'transcript_id', 'ORF_type_ORFanage', 'ORBLv',
+                         'ribotie_score', 'gene_name'])
         for row in reader:
             orf_id = row['ORF_id']
             writer.writerow([
                 orf_id,
                 row['transcript_id'],
-                row['ORF_type_GENCODE'],
+                row['ORF_type'],
                 orblv.get(orf_id, 'NA'),
+                row['ribotie_score'],
+                row['gene_name'],
             ])
 
 

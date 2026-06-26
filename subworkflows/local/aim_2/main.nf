@@ -1,6 +1,6 @@
 process novelCodingJunctions {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/aim_2"
 
     input:
@@ -21,7 +21,7 @@ process novelCodingJunctions {
 
 process matchNovelJunctionsSqtl {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/aim_2"
 
     input:
@@ -46,7 +46,7 @@ process matchNovelJunctionsSqtl {
 
 process matchLeafcutterSqtl {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/aim_2"
 
     input:
@@ -70,7 +70,7 @@ process matchLeafcutterSqtl {
 // Receives a [label, sqtl_matches] tuple; label is used as the output filename prefix.
 process matchSqtlColoc {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/aim_2"
 
     input:
@@ -92,7 +92,7 @@ process matchSqtlColoc {
 // Receives a [label, coloc_matches] tuple; label is used as the output filename prefix.
 process plotColocPie {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/aim_2/figures"
 
     input:

@@ -26,7 +26,7 @@ process FILTER_RIBOTIE_RESULTS {
 }
 
 process translateORFs {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/ribotie/filtered"
 

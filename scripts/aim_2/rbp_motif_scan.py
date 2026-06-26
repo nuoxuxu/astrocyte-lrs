@@ -19,7 +19,7 @@ import re
 import subprocess
 
 GENOME = "/scratch/nxu/astrocytes/data/GRCh38.primary_assembly.genome.fa"
-SAMTOOLS = "/scratch/nxu/astrocytes/env/bin/samtools"
+SAMTOOLS = "/scratch/nxu/astrocyte-lrs/env/bin/samtools"
 FLANK = 40  # bp on each side of the variant
 
 # ── IUPAC helpers ────────────────────────────────────────────────────────────

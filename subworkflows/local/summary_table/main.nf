@@ -95,7 +95,7 @@ process pfam_scan {
 }
 
 process convert_cpat_format {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/summary_table/cpat"
 
@@ -112,7 +112,7 @@ process convert_cpat_format {
 }
 
 process filter_cpat_results {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/summary_table/cpat"
 
@@ -149,7 +149,7 @@ process merge_pfam_results {
 }
 
 process convert_pfam_scan_results {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/summary_table/pfam"
 
@@ -166,7 +166,7 @@ process convert_pfam_scan_results {
 }
 
 process make_summary_table {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/summary_table"
 
@@ -210,7 +210,7 @@ process filter_summary_table {
 }
 
 process phylocsfpp {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/summary_table/phylocsfpp"
 

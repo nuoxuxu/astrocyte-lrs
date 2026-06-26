@@ -1,5 +1,5 @@
 process star_genomeGenerate {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/align/star/"
 
@@ -24,7 +24,7 @@ process star_genomeGenerate {
 }
 
 process star_sr_genome {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/align/short_read/gencode"
     input:

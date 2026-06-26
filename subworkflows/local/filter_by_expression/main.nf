@@ -1,5 +1,5 @@
 process filter_by_expression {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/sqanti3/isoseq/sqanti3_filter"
 
@@ -45,7 +45,7 @@ process GffCompare {
 }
 
 process transcript_visualization {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/figures"
 

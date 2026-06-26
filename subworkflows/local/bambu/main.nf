@@ -16,7 +16,7 @@ process merge_flnc_bams {
 }
 
 process convert_flnc_bam_to_fastqz {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/prepare/convert_ubam_to_fastqz"
 
@@ -33,7 +33,7 @@ process convert_flnc_bam_to_fastqz {
 }
 
 process minimap2_genome {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/align/long_read/minimap2_genome"    
     input:
@@ -48,7 +48,7 @@ process minimap2_genome {
 }
 
 process bambu {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "mid_slurm_job"
     storeDir "nextflow_results/discover/bambu"
     input:

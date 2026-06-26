@@ -1,5 +1,5 @@
 process IsoseqsSwitchList {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}"
 
@@ -23,7 +23,7 @@ process IsoseqsSwitchList {
 }
 
 process PlotIsoformConsequences {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/figures"
 
@@ -42,7 +42,7 @@ process PlotIsoformConsequences {
 }
 
 process volcano_plot {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/IsoformSwitchAnalyzeR/${version}/figures"
 
@@ -62,7 +62,7 @@ process volcano_plot {
 }
 
 process prepare_shinyApp {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "astrocyte_vis_app/data/${version}"
 

@@ -1,6 +1,6 @@
 process runORFanage {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
@@ -33,7 +33,7 @@ process runORFanage {
 
 process addNoncodingTx {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
@@ -73,7 +73,7 @@ process fixORFanageFormat {
 
 process restoreAgatRemovedTx {
     label "short_slurm_job"
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
     input:
@@ -93,7 +93,7 @@ process restoreAgatRemovedTx {
 }
 
 process translateORFs {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
@@ -113,7 +113,7 @@ process translateORFs {
 }
 
 process format_gtf_for_ribotie {
-    conda "/scratch/nxu/astrocytes/env"
+    conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
     storeDir "nextflow_results/orfanage/${orfanage_mode}"
 
