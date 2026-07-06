@@ -5,8 +5,7 @@ Usage:
     merge_orbl_quality.py  ribotie.csv  orbl_output.tsv  -o quality_metrics.tsv
 
 Joins on ORF_id, appending the ORBLv column. ORFs absent from the ORBL output
-receive 'NA'. The ORF_type column from the RiboTIE CSV is passed through as
-ORF_type_ORFanage.
+receive 'NA'.
 """
 import argparse
 import csv
@@ -30,14 +29,12 @@ def main():
     with open(args.ribotie_csv) as f_in, open(args.output, 'w', newline='') as f_out:
         reader = csv.DictReader(f_in)
         writer = csv.writer(f_out, delimiter='\t')
-        writer.writerow(['ORF_id', 'transcript_id', 'ORF_type_ORFanage', 'ORBLv',
-                         'ribotie_score', 'gene_name'])
+        writer.writerow(['ORF_id', 'transcript_id', 'ORBLv', 'ribotie_score', 'gene_name'])
         for row in reader:
             orf_id = row['ORF_id']
             writer.writerow([
                 orf_id,
                 row['transcript_id'],
-                row['ORF_type'],
                 orblv.get(orf_id, 'NA'),
                 row['ribotie_score'],
                 row['gene_name'],

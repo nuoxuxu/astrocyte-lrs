@@ -9,7 +9,7 @@ counts = Counter()
 with open("nextflow_results/quality/no_minlen_quality_metrics.tsv") as f:
     reader = csv.DictReader(f, delimiter="\t")
     for row in reader:
-        t = row["ORF_type_GENCODE"].strip()
+        t = row["ORF_type_RiboTIE"].strip()
         if t:
             counts[t] += 1
 
@@ -42,7 +42,7 @@ for bar, val in zip(bars, values[::-1]):
             f"{val:,}", va="center", ha="left", fontsize=9)
 
 ax.set_xlabel("Number of ORFs", fontsize=11)
-ax.set_title("ORF count by ORF_type_GENCODE (no_minlen)", fontsize=12)
+ax.set_title("ORF count by ORF_type_RiboTIE (no_minlen)", fontsize=12)
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 ax.set_xlim(0, max(values) * 1.18)

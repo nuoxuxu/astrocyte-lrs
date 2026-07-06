@@ -106,26 +106,6 @@ process merge_orbl_chunks {
     """
 }
 
-process add_biotype_with_frameshift {
-    conda "/scratch/nxu/astrocyte-lrs/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/quality"
-
-    input:
-    tuple val(name), path(quality_metrics), path(ribotie_csv)
-
-    output:
-    tuple val(name), path("${name}_quality_metrics_biotype.tsv"), emit: quality_metrics
-
-    script:
-    """
-    add_biotype_with_frameshift.py \\
-        $quality_metrics \\
-        $ribotie_csv \\
-        -o ${name}_quality_metrics_biotype.tsv
-    """
-}
-
 process annotate_is_novel {
     conda "/scratch/nxu/astrocyte-lrs/env"
     label "short_slurm_job"
@@ -209,6 +189,30 @@ process add_riboseq_coverage {
         ${params.riboseq_bw} \\
         --bigwig-tool ${params.bigwig_average_over_bed} \\
         -o ${name}_quality_metrics_riboseq.tsv
+    """
+}
+
+process plot_orf_type_bars {
+    conda "/scratch/nxu/astrocyte-lrs/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/quality/figures"
+
+    input:
+    tuple val(name), path(orf_type_gencode), path(ribotie_gtf),
+          path(orfanage_plain_gtf), path(gencode_gtf)
+
+    output:
+    tuple val(name), path("${name}_orf_type_bars_orfanage.png"),
+                     path("${name}_orf_type_bars_ribotie.png")
+
+    script:
+    """
+    plot_orf_type_bars.py $orf_type_gencode \\
+        --name $name \\
+        --prefix ${name}_orf_type_bars \\
+        --ribotie-gtf $ribotie_gtf \\
+        --orfanage-gtf $orfanage_plain_gtf \\
+        --gencode-gtf $gencode_gtf
     """
 }
 
@@ -319,13 +323,8 @@ workflow LABEL_ORF_TYPE_GENCODE {
         .join(merge_orbl_chunks.out.orbl_output)
         | merge_orbl_quality
 
-    // Add biotype_with_frameshift using pre-computed frame_wrt_canonical_TIS from RiboTIE CSV
-    merge_orbl_quality.out.quality_metrics
-        .join(combined_ch.map { name, csv, gtf, orfanage, clf -> tuple(name, csv) })
-        | add_biotype_with_frameshift
-
     // Annotate is_novel: 1 if any CDS segment overlaps a non-GENCODE-exon region
-    add_biotype_with_frameshift.out.quality_metrics
+    merge_orbl_quality.out.quality_metrics
         .join(combined_ch.map { name, csv, gtf, orfanage, clf -> tuple(name, gtf, clf) })
         .combine(annotation_gtf)
         | annotate_is_novel
@@ -352,7 +351,14 @@ workflow LABEL_ORF_TYPE_GENCODE {
         .combine(annotation_gtf)
         | label_orf_type_gencode
 
-    // Merge ORF_type_GENCODE column into the riboseq quality metrics
+    // Bar chart: in-frame ORF type distribution per version, with GENCODE CDS bin overlay
+    label_orf_type_gencode.out
+        .join(combined_ch.map { name, csv, gtf, orfanage, clf -> tuple(name, gtf) })
+        .join(orfanage_plain_ch)
+        .combine(annotation_gtf)
+        | plot_orf_type_bars
+
+    // Merge ORF_type_ORFanage + ORF_type_RiboTIE columns into the riboseq quality metrics
     add_riboseq_coverage.out.quality_metrics
         .join(label_orf_type_gencode.out)
         | merge_orf_type_gencode

@@ -547,7 +547,7 @@ def main():
         writer.writerow([
             'ORF_id', 'gene_name', 'location', 'transcript_id', 'transcript_len',
             'start_codon', 'stop_codon', 'strand',
-            'ORF_type_ORFanage', 'ORF_type_GENCODE',
+            'ORF_type_ORFanage', 'ORF_type_RiboTIE',
             'phylocsf_score_weighted_mean', 'phylocsf_power_mean', 'Domain', 'is_novel',
             'isoform_switch_q_value', 'gene_q_value', 'IF_overall', 'transcode',
             'leafcutter_sqtl_coloc_match', 'novel_coding_junction_sqtl_coloc_match',
@@ -599,7 +599,7 @@ def main():
                 TIS_idx, TTS_idx, canonical_orfanage, tx_id, gene_for_tx, gene_biotypes
             )
 
-            # ORF_type_GENCODE: GENCODE CDS projected onto the Iso-Seq transcript
+            # ORF_type_RiboTIE: GENCODE CDS projected onto the Iso-Seq transcript
             gencode_tx = isoform_to_gencode_tx.get(tx_id, 'novel')
             if (gencode_tx != 'novel'
                     and gencode_tx in gencode_cds_by_tx

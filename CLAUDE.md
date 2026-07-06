@@ -82,16 +82,55 @@ require Iso-Seq auxiliary data.
 
 Current workflows exported from `subworkflows/local/quality/main.nf`:
 - **`GET_QUALITY_METRICS`** - PhyloCSF++ conservation annotation of novel ORF GTFs
-- **`LABEL_ORF_TYPE_GENCODE`** - Adds `ORF_type_GENCODE` to the RiboTIE merged CSV by
-  projecting the GENCODE canonical CDS onto each Iso-Seq transcript (same logic as
-  `bin/make_summary_table.py`). Output: `nextflow_results/quality/{name}_orf_type_gencode.tsv`.
-  Also produces `{name}_final_quality_metrics.tsv` with `ORF_type_GENCODE` inserted between
-  `ORF_type_ORFanage` and `ORBLv` in the riboseq quality metrics table.
+- **`LABEL_ORF_TYPE_GENCODE`** - Adds `ORF_type_ORFanage` and `ORF_type_RiboTIE` to the RiboTIE
+  merged CSV. Output: `nextflow_results/quality/{name}_orf_type_gencode.tsv`.
+  Also produces `{name}_final_quality_metrics.tsv` with both `ORF_type_ORFanage` and
+  `ORF_type_RiboTIE` inserted immediately before `ORBLv` in the riboseq quality metrics table.
 
-#### Three-tier canonical CDS lookup (`bin/label_orf_type_gencode.py`)
+#### ORF type columns — semantics (`bin/label_orf_type_gencode.py`)
 
-For each Iso-Seq transcript, the script resolves the corresponding GENCODE canonical CDS
-via a prioritised lookup hierarchy before running `project_gencode_cds` / `classify_orf_type`:
+Both columns classify an ORF against the same reference (GENCODE canonical CDS projected onto the Iso-Seq transcript's exon structure), but differ in which ORF is the **query**:
+
+| Column | Query | Reference | Purpose |
+|--------|-------|-----------|---------|
+| `ORF_type_ORFanage` | ORFanage-predicted CDS for this transcript | GENCODE canonical CDS (Tier-1 only: `orfanage_template`) | Reflects the ORF type label seen by RiboTIE during training |
+| `ORF_type_RiboTIE` | RiboTIE-predicted ORF (from `TIS_pos`/`TTS_pos`) | GENCODE canonical CDS (three-tier lookup) | How the RiboTIE prediction compares to GENCODE |
+
+`ORF_type_ORFanage` uses only Tier-1 because that is exactly what RiboTIE was trained on — ORFanage derives its CDS from the `orfanage_template` ENST, and that template is what was used to generate training labels. `ORF_type_RiboTIE` uses all three tiers to give the best-available GENCODE reference for every transcript, including those ORFanage did not template.
+
+#### In-frame vs ncORF categories
+
+ORF types are divided into two groups:
+
+**In-frame** — the ORF shares the reading frame of a GENCODE canonical CDS (same TIS or same TTS, so codon phase is preserved):
+
+| Category | Relationship to GENCODE canonical |
+|----------|----------------------------------|
+| `annotated CDS` | Identical start and stop |
+| `N-terminal extension` | Earlier start, same stop |
+| `C-terminal extension` | Same start, later stop |
+| `N-terminal truncation` | Later start, same stop |
+| `C-terminal truncation` | Same start, earlier stop |
+
+**ncORF** — everything else:
+- `uORF`, `uoORF`, `dORF`, `doORF`, `intORF` — different frame or entirely outside the canonical CDS
+- `lncRNA-ORF` — the resolved ENST is a lncRNA; no canonical CDS exists, so there is no frame to be in. Classified as ncORF even though the ORF occupies a transcribed region.
+- `varRNA-ORF` — same rationale; resolved ENST is another non-coding biotype
+- `no_template_*` — no GENCODE CDS template could be resolved at all
+
+`plot_orf_type_bars.py` (called by the `plot_orf_type_bars` process) shows only in-frame ORFs; percentages are computed over the in-frame total per column, not over all ORFs.
+
+#### Non-coding fallback: lncRNA-ORF vs varRNA-ORF
+
+When no GENCODE canonical CDS can be projected (missing template, non-coding ENST, or TIS outside all exons), the ORF is labelled based on the resolved ENST's `transcript_type` in GENCODE:
+- `lncRNA-ORF` if `transcript_type == 'lncRNA'`
+- `varRNA-ORF` for all other non-coding biotypes (or when no ENST is resolved at all)
+
+This mirrors RiboTIE's own classification logic from training.
+
+#### Three-tier canonical CDS lookup (for `ORF_type_RiboTIE`)
+
+For each Iso-Seq transcript, the GENCODE canonical CDS is resolved via a prioritised lookup before running `project_gencode_cds` / `classify_orf_type`:
 
 | Tier | Source | Condition |
 |------|--------|-----------|

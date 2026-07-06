@@ -1,13 +1,20 @@
 #!/scratch/nxu/astrocyte-lrs/env/bin/python3
-"""Assign ORF_type_GENCODE labels to RiboTIE ORF predictions.
+"""Assign ORF_type_RiboTIE and ORF_type_ORFanage labels to RiboTIE ORF predictions.
 
-For each ORF in the RiboTIE CSV, finds the canonical GENCODE CDS via a
-three-tier hierarchy:
+ORF_type_RiboTIE: canonical CDS resolved via a three-tier hierarchy:
   1. orfanage_template attribute on the matching transcript in orfanage.gtf
   2. associated_transcript from SQANTI3 final_classification
   3. MANE_Select transcript for the associated_gene
 
-Outputs a TSV with columns: ORF_id, transcript_id, ORF_type_ORFanage, ORF_type_GENCODE.
+ORF_type_ORFanage: classifies the ORFanage-predicted CDS (query) against the GENCODE
+canonical CDS (reference, resolved via Tier-1 orfanage_template only), mirroring the
+ORF type labels assigned during RiboTIE training.
+
+Both columns follow RiboTIE's decision tree: when no canonical CDS can be
+projected, the ORF is labelled lncRNA-ORF if the canonical ENST's transcript_type
+is 'lncRNA', otherwise varRNA-ORF.
+
+Outputs a TSV with columns: ORF_id, transcript_id, ORF_type_ORFanage, ORF_type_RiboTIE.
 """
 import argparse
 import csv
@@ -36,16 +43,23 @@ def strip_version(enst_id):
 _FUSION_RE = re.compile(r'^ENSG\d+\.\d+_ENSG\d+\.\d+$')
 
 
-def load_gencode_data(gtf_path):
-    """Parse GENCODE GTF; return (gene_biotypes, cds_by_tx, gene_names, gene_to_mane_select).
+def _ncorf_label(tx_biotype):
+    """Return lncRNA-ORF or varRNA-ORF based on GENCODE transcript_type, matching RiboTIE."""
+    return 'lncRNA-ORF' if tx_biotype == 'lncRNA' else 'varRNA-ORF'
 
-    cds_by_tx is keyed by version-stripped transcript IDs.
+
+def load_gencode_data(gtf_path):
+    """Parse GENCODE GTF; return (gene_biotypes, cds_by_tx, gene_names, gene_to_mane_select, tx_biotypes).
+
+    cds_by_tx and tx_biotypes are keyed by version-stripped transcript IDs.
     gene_to_mane_select maps stripped gene_id -> stripped transcript_id for MANE_Select transcripts.
+    tx_biotypes maps stripped transcript_id -> transcript_type.
     """
     tx_cds = {}
     gene_biotypes = {}
     gene_names = {}
     gene_to_mane_select = {}
+    tx_biotypes = {}
     with open(gtf_path) as f:
         for line in f:
             if line.startswith('#'):
@@ -67,6 +81,8 @@ def load_gencode_data(gtf_path):
                 gene_id = attrs.get('gene_id')
                 if tx_id and gene_id and 'MANE_Select' in fields[8]:
                     gene_to_mane_select[strip_version(gene_id)] = strip_version(tx_id)
+                if tx_id and attrs.get('transcript_type'):
+                    tx_biotypes[strip_version(tx_id)] = attrs['transcript_type']
             elif feat == 'CDS':
                 chrom, strand = fields[0], fields[6]
                 start, end = int(fields[3]), int(fields[4])
@@ -79,7 +95,7 @@ def load_gencode_data(gtf_path):
                     tx_cds[key] = {'chrom': chrom, 'strand': strand, 'segs': []}
                 tx_cds[key]['segs'].append((start, end))
     cds_by_tx = {tx: {'strand': v['strand'], 'segs': v['segs']} for tx, v in tx_cds.items()}
-    return gene_biotypes, cds_by_tx, gene_names, gene_to_mane_select
+    return gene_biotypes, cds_by_tx, gene_names, gene_to_mane_select, tx_biotypes
 
 
 def load_orfanage_iso_exons(gtf_path):
@@ -104,25 +120,39 @@ def load_orfanage_iso_exons(gtf_path):
     return {tx: {'strand': strands[tx], 'exons': exons[tx]} for tx in exons}
 
 
-def load_orfanage_templates(gtf_path):
-    """Parse plain orfanage.gtf for transcript-level orfanage_template attributes.
+def load_orfanage_templates_and_cds(gtf_path):
+    """Parse plain orfanage.gtf for orfanage_template attributes and CDS features.
 
-    Returns {transcript_id: stripped_enst_id}.
+    Returns:
+        templates: {transcript_id: stripped_enst_id}
+        cds_by_tx: {transcript_id: {strand, segs}} — ORFanage-predicted CDS in genomic coords
     """
     templates = {}
+    cds = {}
+    strands = {}
     with open(gtf_path) as f:
         for line in f:
             if line.startswith('#'):
                 continue
             fields = line.rstrip('\n').split('\t')
-            if len(fields) < 9 or fields[2] != 'transcript':
+            if len(fields) < 9:
                 continue
+            feat = fields[2]
             attrs = parse_gtf_attributes(fields[8])
             tx_id = attrs.get('transcript_id')
-            template = attrs.get('orfanage_template')
-            if tx_id and template:
-                templates[tx_id] = strip_version(template)
-    return templates
+            if not tx_id:
+                continue
+            if feat == 'transcript':
+                template = attrs.get('orfanage_template')
+                if template:
+                    templates[tx_id] = strip_version(template)
+            elif feat == 'CDS':
+                strand = fields[6]
+                start, end = int(fields[3]), int(fields[4])
+                strands[tx_id] = strand
+                cds.setdefault(tx_id, []).append((start, end))
+    cds_by_tx = {tx: {'strand': strands[tx], 'segs': cds[tx]} for tx in cds}
+    return templates, cds_by_tx
 
 
 def project_gencode_cds(iso_exon_data, cds_data):
@@ -166,13 +196,15 @@ def project_gencode_cds(iso_exon_data, cds_data):
     return (tis_idx, tts_idx - 1, tts_idx)
 
 
-def classify_orf_type(TIS_idx, TTS_idx, canonical, tx_id, gene_for_tx, gene_biotypes):
-    """Classify ORF type using the transcript_transformer decision tree."""
+def classify_orf_type(TIS_idx, TTS_idx, canonical, tx_biotype):
+    """Classify ORF type using the transcript_transformer decision tree.
+
+    tx_biotype is the GENCODE transcript_type of the resolved canonical ENST; used to
+    distinguish lncRNA-ORF from varRNA-ORF when no canonical CDS projection is available.
+    """
     LTS_idx = TTS_idx - 1
     if canonical is None:
-        gene_id = gene_for_tx.get(tx_id)
-        biotype = gene_biotypes.get(gene_id, '') if gene_id else ''
-        return 'lncRNA-ORF' if biotype == 'lncRNA' else 'varRNA-ORF'
+        return _ncorf_label(tx_biotype)
     canonical_TIS_idx, canonical_LTS_idx, canonical_TTS_idx = canonical
     if canonical_TIS_idx == TIS_idx:
         if canonical_LTS_idx == LTS_idx:
@@ -199,12 +231,39 @@ def classify_orf_type(TIS_idx, TTS_idx, canonical, tx_id, gene_for_tx, gene_biot
             return 'intORF'
 
 
+def compute_orf_type_orfanage(tx_id, orfanage_templates, orfanage_cds_by_tx, gencode_cds_by_tx,
+                               iso_exons, tx_biotypes, gene_for_tx, gene_biotypes):
+    """Classify ORF type for the ORFanage-predicted CDS relative to the GENCODE canonical CDS.
+
+    The ORFanage CDS is the query; the GENCODE canonical CDS (resolved via Tier-1
+    orfanage_template) is the reference. This mirrors the ORF type labels assigned during
+    RiboTIE training.
+    """
+    template = orfanage_templates.get(tx_id)
+    if template is None:
+        gene_id = gene_for_tx.get(tx_id, '')
+        return _ncorf_label(gene_biotypes.get(gene_id, '') if gene_id else '')
+    if template not in gencode_cds_by_tx:
+        return _ncorf_label(tx_biotypes.get(template, ''))
+    if tx_id not in iso_exons:
+        return _ncorf_label(tx_biotypes.get(template, ''))
+    orfanage_cds_data = orfanage_cds_by_tx.get(tx_id)
+    if orfanage_cds_data is None:
+        return _ncorf_label(tx_biotypes.get(template, ''))
+    orfanage_proj = project_gencode_cds(iso_exons[tx_id], orfanage_cds_data)
+    if orfanage_proj is None:
+        return _ncorf_label(tx_biotypes.get(template, ''))
+    orfanage_TIS, _, orfanage_TTS = orfanage_proj
+    canonical = project_gencode_cds(iso_exons[tx_id], gencode_cds_by_tx[template])
+    return classify_orf_type(orfanage_TIS, orfanage_TTS, canonical, tx_biotypes.get(template, ''))
+
+
 def resolve_canonical_enst(tx_id, orfanage_templates, assoc_tx_raw, gene_id_raw,
                             gencode_cds_by_tx, gene_to_mane_select):
     """Return (canonical_enst_stripped, source) or (no_template_label, 'special').
 
     source is one of: 'orfanage_template', 'assoc_tx', 'mane_select', 'special'.
-    When source == 'special', the returned string is the final ORF_type_GENCODE label.
+    When source == 'special', the returned string is the final ORF_type_RiboTIE label.
     """
     # Tier 1: orfanage_template
     template = orfanage_templates.get(tx_id)
@@ -240,7 +299,7 @@ def resolve_canonical_enst(tx_id, orfanage_templates, assoc_tx_raw, gene_id_raw,
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Add ORF_type_GENCODE labels to RiboTIE CSV.')
+    parser = argparse.ArgumentParser(description='Add ORF_type_RiboTIE labels to RiboTIE CSV.')
     parser.add_argument('ribotie_csv', help='RiboTIE predictions CSV')
     parser.add_argument('annotation_gtf', help='GENCODE annotation GTF')
     parser.add_argument('orfanage_gtf', help='Orfanage numbered-exons GTF (orfanage_numbered_exons.gtf)')
@@ -249,9 +308,9 @@ def main():
     parser.add_argument('-o', '--output', default='orf_type_gencode.tsv')
     args = parser.parse_args()
 
-    gene_biotypes, gencode_cds_by_tx, _gene_names, gene_to_mane_select = load_gencode_data(args.annotation_gtf)
+    gene_biotypes, gencode_cds_by_tx, _gene_names, gene_to_mane_select, tx_biotypes = load_gencode_data(args.annotation_gtf)
     iso_exons = load_orfanage_iso_exons(args.orfanage_gtf)
-    orfanage_templates = load_orfanage_templates(args.orfanage_plain_gtf)
+    orfanage_templates, orfanage_cds_by_tx = load_orfanage_templates_and_cds(args.orfanage_plain_gtf)
 
     clf = pl.read_parquet(args.final_classification).select(
         ['isoform', 'associated_gene', 'associated_transcript']
@@ -262,13 +321,17 @@ def main():
     with open(args.ribotie_csv) as f_in, open(args.output, 'w', newline='') as f_out:
         reader = csv.DictReader(f_in)
         writer = csv.writer(f_out, delimiter='\t')
-        writer.writerow(['ORF_id', 'transcript_id', 'ORF_type_ORFanage', 'ORF_type_GENCODE'])
+        writer.writerow(['ORF_id', 'transcript_id', 'ORF_type_ORFanage', 'ORF_type_RiboTIE'])
         for row in reader:
             orf_id = row['ORF_id']
             tx_id = row['transcript_id']
-            orf_type_orfanage = row.get('ORF_type', 'NA')
             TIS_idx = int(row['TIS_pos']) - 1
             TTS_idx = int(row['TTS_pos']) - 1
+
+            orf_type_orfanage = compute_orf_type_orfanage(
+                tx_id, orfanage_templates, orfanage_cds_by_tx, gencode_cds_by_tx,
+                iso_exons, tx_biotypes, gene_for_tx, gene_biotypes
+            )
 
             assoc_tx_raw = isoform_to_gencode_tx.get(tx_id)
             gene_id_raw = gene_for_tx.get(tx_id)
@@ -287,14 +350,9 @@ def main():
                 writer.writerow([orf_id, tx_id, orf_type_orfanage, canonical_enst])
                 continue
 
-            # Resolve canonical CDS; map non-coding ENST to appropriate label
+            # Non-coding canonical ENST: label using its transcript_type per RiboTIE logic
             if canonical_enst not in gencode_cds_by_tx:
-                if source == 'orfanage_template':
-                    label = 'no_template_orfanage_template_non_coding'
-                elif source == 'assoc_tx':
-                    label = 'no_template_associated_transcript_non_coding'
-                else:  # mane_select
-                    label = 'no_template_associated_MANE_Select_non_coding'
+                label = _ncorf_label(tx_biotypes.get(canonical_enst, ''))
                 writer.writerow([orf_id, tx_id, orf_type_orfanage, label])
                 continue
 
@@ -303,7 +361,7 @@ def main():
                 canonical = project_gencode_cds(iso_exons[tx_id], gencode_cds_by_tx[canonical_enst])
 
             orf_type_gencode = classify_orf_type(
-                TIS_idx, TTS_idx, canonical, tx_id, gene_for_tx, gene_biotypes
+                TIS_idx, TTS_idx, canonical, tx_biotypes.get(canonical_enst, '')
             )
             writer.writerow([orf_id, tx_id, orf_type_orfanage, orf_type_gencode])
 
