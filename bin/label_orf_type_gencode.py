@@ -5,7 +5,9 @@ For each ORF in the RiboTIE CSV, projects the GENCODE canonical CDS onto the
 Iso-Seq transcript coordinate system and applies the same classification tree
 used in make_summary_table.py.
 
-Outputs a TSV with columns: ORF_id, transcript_id, ORF_type_GENCODE.
+Outputs a TSV with columns: ORF_id, transcript_id, ORF_type_ORFanage, ORF_type_GENCODE.
+ORF_type_ORFanage: The ORF type assigned by RiboTIE in respect to ORFanage
+ORF_type_GENCODE: The ORF type added, using RiboTIE's classification logic, in respect to GENCODE
 """
 import argparse
 import csv
