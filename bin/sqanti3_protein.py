@@ -7,6 +7,7 @@
 # Modified by Gloria (gs9yr@virginia.edu) to read in a single gtf with CDS features (10/14/25)
 # Modified by Megan (cwp5au@virginia.edu) to work with the latest SQANTI3 5.5 (10/15/25)
 # Modified by Megan (cwp5au@virginia.edu) to no longer require the best orf file as input (1/19/26)
+# Modified by Nuo Xu (zcbtnxu@gmail.com) to preserve underscore suffix in PacBio transcript IDs (8/10/26)
 
 # imports
 
@@ -1308,12 +1309,12 @@ def get_perfect_subset_status(r1, r2):
 
 ## START: split GTF (i.e., rename CDS) embedded code
 
-PB_REGEX = re.compile(r"PB\.\d+\.\d+")
+PB_REGEX = re.compile(r"PB\.\d+\.\d+(?:_\d+)?")
 
 def extract_transcript_id(attr_str):
     """
     Extract transcript_id value from the attribute string.
-    - For PacBio, normalize IL17RA|PB.15926.17|1 → PB.15926.17
+    - For PacBio, normalize IL17RA|PB.15926.17|1 → PB.15926.17 or PB.15926.17_203 → PB.15926.17_203
     - For GENCODE, keep ENST... as is
     """
     m = re.search(r'transcript_id\s+"([^"]+)"', attr_str)
