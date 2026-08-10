@@ -85,7 +85,53 @@ process translate_supplemented_ORFs {
     """
 }
 
+process SQANTI_PROTEIN {
+    label 'short_slurm_job'
+    container "sqanti3_latest.sif"
+    storeDir "nextflow_results/sqanti3_protein"
+
+    input:
+    path cds_gtf
+    path reference_gtf
+    path sqanti_protein_script
+
+    output:
+    path("*.predicted_proteome.best_ORF_SQANTI_classification.tsv"), emit: protein_classification
+    path("*_S3_PREDICTED_PROTEOME_M3_SQANTI_PROTEIN_log.txt"), emit: log
+    path "versions.yml", emit: versions
+
+    script:
+    """
+    exec > >(tee S3_PREDICTED_PROTEOME_M3_SQANTI_PROTEIN_log.txt) 2>&1
+    source /conda/miniconda3/etc/profile.d/conda.sh
+    conda activate sqanti3
+    export SQANTI_PATH=\$(dirname \$(which sqanti3_qc.py))
+
+    # Add src/utilities and utilities to PYTHONPATH for cupcake and other imports
+    export PYTHONPATH=\${SQANTI_PATH}/src/utilities:\${SQANTI_PATH}/utilities:\${SQANTI_PATH}:\${PYTHONPATH:-}
+
+    # Copy the script locally and patch it to use the platform-specific gtfToGenePred binary
+    # v5.5.4 has gtfToGenePred-linux-x86_64 instead of gtfToGenePred
+    cp $sqanti_protein_script ./sqanti3_protein_input_full_gtf_patched.py
+    sed -i 's|GTF2GENEPRED_PROG = os.path.join(sqanti_path, "src", "utilities", "gtfToGenePred")|GTF2GENEPRED_PROG = os.path.join(sqanti_path, "src", "utilities", "gtfToGenePred-linux-x86_64")|g' ./sqanti3_protein_input_full_gtf_patched.py
+
+    python ./sqanti3_protein_input_full_gtf_patched.py \\
+        $cds_gtf \\
+        $reference_gtf \\
+        -d . \\
+        -p test
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        sqanti3: 5.5.4
+    END_VERSIONS
+    """
+}
+
 workflow {
+    // Data flow: orfanage ORFs → RiboTIE scoring (by collaborator) → filtered_output.gtf (high-confidence RiboTIE hits)
+    // supplement_collaborator_gtf re-adds orfanage ORFs filtered out by RiboTIE, creating a comprehensive ORF set
+
     channel.value(file(params.annotation_gtf)).set { annotation_gtf }
     channel.value(file(params.primer_to_sample)).set { primer_to_sample }
     channel.value(file("nextflow_results/sqanti3/isoseq/sqanti3_filter/final_transcripts.fasta")).set { final_fasta }
@@ -119,11 +165,13 @@ workflow {
 
     ISOFORMSWITCH(channel.value("ALL2"), prepare_supplemented_files.out.supplemented_expression, primer_to_sample, prepare_supplemented_files.out.supplemented_fasta, supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, final_classification)
 
-    AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH.out.isoform_features_csv, leafcutter_sig, leafcutter_clu2gene)
+    SQANTI_PROTEIN(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, file("${projectDir}/bin/sqanti3_protein.py"))
 
-    FILTER_RIBOTIE(fix_collaborator_gtf.out.fixed_gtf, final_fasta, final_expression, final_classification, ref_genome_fasta)
+    // AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH.out.isoform_features_csv, leafcutter_sig, leafcutter_clu2gene)
 
-    SUMMARY_TABLE(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, fix_collaborator_gtf.out.fixed_gtf, ribotie_cpm1_3sample, annotation_gtf, orfanage_gtf, final_classification, ISOFORMSWITCH.out.isoform_features_csv, study2_gtf, AIM_2.out.leafcutter_coloc, AIM_2.out.novel_coding_junction_coloc, concordant_csv)
+    // FILTER_RIBOTIE(fix_collaborator_gtf.out.fixed_gtf, final_fasta, final_expression, final_classification, ref_genome_fasta)
+
+    // SUMMARY_TABLE(Human_coding_transcripts_CDS, Human_noncoding_transcripts_RNA, Human_logitModel, FILTER_RIBOTIE.out.filtered_RiboTIE_fasta, FILTER_RIBOTIE.out.filtered_RiboTIE_proteins, pfamdb, fix_collaborator_gtf.out.fixed_gtf, ribotie_cpm1_3sample, annotation_gtf, orfanage_gtf, final_classification, ISOFORMSWITCH.out.isoform_features_csv, study2_gtf, AIM_2.out.leafcutter_coloc, AIM_2.out.novel_coding_junction_coloc, concordant_csv)
 
     //TODO: MAPS analysis for variants disruption ncORFs
     // channel.value(file("/scratch/nxu/100KGP_splicing/data/gnomad/exomes/gnomad.exomes.v4.1.sites.chr16.vcf.bgz")).map { ["gnomad_exomes_chr16", it] }.set { vcf_ch }
