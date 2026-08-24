@@ -51,6 +51,7 @@ process refine {
     output:
     tuple val(sample_id), path("${sample_id}.*.flnc.bam"), emit: flnc_bam
     path("${sample_id}.*.flnc.report.csv"), emit: flnc_report_csv
+    path("${sample_id}.*.filter_summary.report.json"), emit: filter_summary_report_json
 
     script:
     """
@@ -63,6 +64,24 @@ process refine {
             ${primer_fasta} \\
             ${sample_id}.\${output_file}.flnc.bam
         done
+    """
+}
+
+process calculate_total_flnc {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "export/local"
+    input:
+    path(filter_summary_report_jsons)
+    path(primer_to_sample)
+
+    output:
+    path("flnc_count.csv")
+
+    script:
+    """
+    fofn.py "*.flnc.filter_summary.report.json"
+    calculate_total_flnc.py --path_primer_to_sample $primer_to_sample --output_path flnc_count.csv
     """
 }
 
@@ -84,6 +103,8 @@ workflow PREPROCESSING {
     skera(hifi_reads_bam, kinnex_adapters)
     lima(skera.out, isoseq_primers, biosamples_csv)
     refine(lima.out.demultiplexed_bam, isoseq_primers)
+    refine.out.filter_summary_report_json.collect().set { filter_summary_report_jsons }
+    calculate_total_flnc(filter_summary_report_jsons, channel.fromPath(params.primer_to_sample))
 
     emit:
     flnc_bam = refine.out.flnc_bam

@@ -1,17 +1,22 @@
 #!/bin/env python
-import polars as pl
 from pathlib import Path
+import argparse
 
 def main():
-    flnc_bams = list(Path("./").glob("*.flnc.bam"))
+    parser = argparse.ArgumentParser(
+        description='Create a FOFN (file of file names) for each unique primer pair based on the file name.'
+    )
+    parser.add_argument('file_suffix', help='Suffix of the files to look for (e.g., ".flnc.filter_summary.report.json")')
+    args = parser.parse_args()
+    flist = list(Path("./").glob(args.file_suffix))
 
     def get_primer_pair(file_path):
         parts = file_path.name.split(".")
         primer_part = parts[1]
         return primer_part
-    unique_primer_Pair = list(set([get_primer_pair(file_path) for file_path in flnc_bams]))
+    unique_primer_Pair = list(set([get_primer_pair(file_path) for file_path in flist]))
     my_dict = {
-            primer: [str(file_path) for file_path in flnc_bams if get_primer_pair(file_path) == primer] 
+            primer: [str(file_path) for file_path in flist if get_primer_pair(file_path) == primer] 
             for primer in unique_primer_Pair
         }
 
