@@ -84,6 +84,9 @@ options(scipen = 999)
 # Get environment variables and check required files
 # =============================================================================
 
+# INTERACTIVE MODE: Hard-coded paths for testing
+# Uncomment the option_list and parse_args below to switch back to CLI mode
+
 option_list = list(
   make_option(c("--basename"), type = "character", default = NULL,
               help = "Output base name"),
@@ -97,8 +100,6 @@ option_list = list(
               help = "Path to all ORFs mapped TSV"),
   make_option(c("--protein_sqanti"), type = "character", default = NULL,
               help = "Path to SQANTI protein classification TSV"),
-  make_option(c("--cpm_file"), type = "character", default = NULL,
-              help = "Path to hashids with CPM filtered file from transcriptome subworkflow"),
   make_option(c("--output_dir"), type = "character", default = NULL,
               help = "Output directory for results"),
   make_option(c("--min_junctions_after_stop"), type = "integer", default = 0,
@@ -111,13 +112,26 @@ option_list = list(
 
 opt = parse_args(OptionParser(option_list = option_list))
 
-required_args = c("basename", "gencode_gtf", "sample_cds_gtf", "sample_dna_fasta", 
-                  "mapped_orfs", "protein_sqanti", "cpm_file", "output_dir")
+required_args = c("basename", "gencode_gtf", "sample_cds_gtf", "sample_dna_fasta",
+                  "mapped_orfs", "protein_sqanti", "output_dir")
 
 missing = required_args[sapply(required_args, function(x) is.null(opt[[x]]))]
 if (length(missing) > 0) {
   stop("Missing required arguments: ", paste0("--", missing, collapse = ", "))
 }
+
+opt <- list(
+  basename = "collaborator",
+  gencode_gtf = "/project/rrg-shreejoy/Genomic_references/GENCODE/gencode.v47.annotation.gtf",
+  sample_cds_gtf = "nextflow_results/translatome/supplemented_collaborator/filtered_output_fixed.gtf",
+  sample_dna_fasta = "nextflow_results/sqanti3/isoseq/sqanti3_filter/final_transcripts.fasta",
+  mapped_orfs = "from_collaborator/ribotie_cpm1_3sample.csv",
+  protein_sqanti = "nextflow_results/sqanti3_protein/test.predicted_proteome.best_ORF_SQANTI_classification.tsv",
+  output_dir = ".",
+  min_junctions_after_stop = 0,
+  nmd_rescue_dist = 25,
+  protein_class_keep = "FPM,NPC,NPE"
+)
 
 basename                       = opt$basename
 gencode_gtf_path               = opt$gencode_gtf
@@ -125,12 +139,10 @@ sample_cds_gtf_path            = opt$sample_cds_gtf
 sample_dna_fasta_path          = opt$sample_dna_fasta
 mapped_orfs                    = opt$mapped_orfs
 protein_sqanti_path            = opt$protein_sqanti
-cpm_file_path                  = opt$cpm_file
 output_dir                     = opt$output_dir
 min_junctions_after_stop_codon = opt$min_junctions_after_stop
 nmd_rescue_dist                = opt$nmd_rescue_dist
 pclass_base_to_keep            = strsplit(opt$protein_class_keep, ",")[[1]]
-
 
 # =============================================================================
 # Helper Functions
@@ -198,9 +210,12 @@ classify_multiexonic_utr = function(tss, strand, junc_chain, gc_chains) {
 #' @param full_fasta Named vector of transcript sequences
 #' @return Data frame with protein sequences and grouped transcript IDs
 group_by_protein_sequence <- function(orf_info, full_fasta) {
-  
+
+  orf_info <- orf_info %>% 
+    mutate(base_transcript_id = sub("_.*$", "", transcript_id))
+
   orf_proteins = orf_info %>%
-    left_join(full_fasta, by = "transcript_id") %>%
+    left_join(full_fasta, join_by(base_transcript_id == transcript_id)) %>%
     filter(!is.na(full_dna_sequence)) %>%
     mutate(orf_dna_sequence = substr(full_dna_sequence, ORF_start, ORF_end))
   
@@ -213,19 +228,17 @@ group_by_protein_sequence <- function(orf_info, full_fasta) {
     filter(orf_aa_sequence != "") %>%
     select(-orf_dna_sequence, -full_dna_sequence)
   
-  # Group transcripts by identical protein sequences, base id should be high confidence isoform with the highest expression
+  # Group transcripts by identical protein sequences, base id should be high confidence isoform
   orf_groups = orf_proteins %>%
-    mutate(avg_cpm = rowMeans(select(., contains("cpm")), na.rm = TRUE)) %>%
     mutate(filter_status = factor(filter_status, levels = c("high_confidence", "NMD", "sqanti_classification", "sqanti_atypical"))) %>%
     group_by(orf_aa_sequence, gene_id) %>%
-    arrange(filter_status, desc(avg_cpm), transcript_id, .by_group = TRUE) %>%
+    arrange(filter_status, transcript_id, .by_group = TRUE) %>%
     mutate(
       orf_all_isoform_id = paste(transcript_id, collapse = ","),
-      #orf_hc_isoform_id  = na_if(paste(transcript_id[filter_status == "high_confidence"], collapse = ","), ""),
       orf_base_id        = transcript_id[1]  # First transcript as representative
-    ) %>% 
+    ) %>%
     ungroup()
-  
+
   return(orf_groups)
 }
 
@@ -576,12 +589,6 @@ utr_results = utr_info %>%
     )
   ) %>%
   select(transcript_id, num_5utr_exons, utr_exon_status, tss_in_gc_exons, junc_cat, utr_cat)
-
-# Merge with SQANTI protein, adjust C term differences since CPAT includes stop codon in coords and gencode does not
-sqanti_class %<>% mutate(
-  pr_cterm_diff = ifelse(!is.na(pr_cterm_diff), pr_cterm_diff + 3, pr_cterm_diff),
-  pr_cterm_gene_diff = ifelse(!is.na(pr_cterm_gene_diff), pr_cterm_gene_diff - 3, pr_cterm_gene_diff),
-  pr_chang = ifelse(!is.na(pr_chang), pr_chang - 3, pr_chang))
 
 utr_output = sqanti_class %>%
   select(transcript_id = isoform_id, everything()) %>%
@@ -977,38 +984,15 @@ subclass_lookup = c(
 full_protein = protein_classifications %>%
   left_join(exon_junctions, by = "transcript_id") %>%
   mutate(
-    filter_status = case_when(
-      
-      # Check 1: Filter if no ORF found
-      utr_cat == "no_orf" ~ "no_ORF",
-      
-      # Check 2: NMD filter - but rescue if only 1 junction and it's within 25bp of stop
-      num_junc_after_stop_codon > min_junctions_after_stop_codon &
-        !(num_junc_after_stop_codon == 1 & dist_stop_to_first_junc <= nmd_rescue_dist) ~ "NMD",
-      
-      # Check 3: Filter if problematic patterns
-      grepl('intergenic|antisense|fusion|orphan|genic', protein_classification) ~ "sqanti_atypical",
-      
-      # Check 4: Filter if NOT in keep base classification list
-      !(protein_classification_base %in% pclass_base_to_keep) ~ "sqanti_classification",
-      
-      # Keep everything else
-      TRUE ~ "high_confidence"
-    ),
-    
+    filter_status = "high_confidence",
+
     # abbreviate
     psubclass_short = subclass_lookup[protein_classification_subset]
-    
+
   )
 
-# NMD rescue
-nmd_rescued = sum(
-  full_protein$num_junc_after_stop_codon > min_junctions_after_stop_codon &
-    full_protein$num_junc_after_stop_codon == 1 &
-    full_protein$dist_stop_to_first_junc <= nmd_rescue_dist,
-  na.rm = TRUE
-)
-cat(sprintf("NMD transcripts rescued (1 junc, <=%dbp from stop): %d\n", nmd_rescue_dist, nmd_rescued))
+cat("\n--- All transcripts classified as high_confidence ---\n")
+cat(sprintf("Total high-confidence ORFs: %d\n", nrow(full_protein)))
 
 # Output full table with filter status
 full_protein %<>%
@@ -1026,17 +1010,11 @@ full_fasta = tibble(
   full_dna_sequence = as.character(full)
 )
 
-# count matrix - include both counts and cpm columns for downstream analysis
-counts = read_tsv(cpm_file_path) %>%
-  select(transcript_id = 1, ends_with("_counts"), ends_with("_cpm"))
-
 # orf coords
-orf_info = read_tsv(mapped_orfs) %>%
-  filter(orf_quality == "Clear Best ORF") %>%
-  select(transcript_id = isoform_id, ORF_start, ORF_end) %>%
-  left_join(counts, by = c("transcript_id")) %>%
-  left_join(select(full_protein, 
-                   gene_id, transcript_id, pclass, reference_gene_id, reference_gene_name, filter_status), 
+orf_info = read_csv(mapped_orfs) %>%
+  select(transcript_id = ORF_id, ORF_start = TIS_pos, ORF_end = TTS_pos) %>%
+  left_join(select(full_protein,
+                   gene_id, transcript_id, pclass, reference_gene_id, reference_gene_name, filter_status),
             by = "transcript_id")
 
 # group by orf
@@ -1068,28 +1046,19 @@ name_map = hc_orf_groups %>%
   summarise(reference_gene_name = paste(unique(reference_gene_name), collapse = ","), .groups = "drop")
 
 hc_collapsed = hc_orf_groups %>%
-  select(-avg_cpm) %>%
   group_by(orf_all_isoform_id, orf_base_id, gene_id) %>%
-  summarize(across(c(ends_with("_counts"), ends_with("_cpm")), \(x) sum(x, na.rm = TRUE))) %>%
-  ungroup() %>%
+  summarize(.groups = "drop") %>%
   left_join(name_map, by = "orf_base_id") %>%
   select(orf_base_id, orf_all_isoform_id, gene_id, reference_gene_name, everything())
 
-write_tsv(hc_collapsed, file.path(output_dir, paste0(basename, ".predicted_proteome.collapsed_high_confidence_ORF_hashids_with_cpm.txt")))
+write_tsv(hc_collapsed, file.path(output_dir, paste0(basename, ".predicted_proteome.collapsed_high_confidence_ORF_hashids.txt")))
 
 # write a corresponding ORF centric gtf
 gtf = import(sample_cds_gtf_path) %>%
   as.data.frame()
 
-new_orf_attributes = hc_collapsed %>% 
-  mutate(avg_orf_cpm = rowMeans(across(contains("cpm")), na.rm = TRUE)) %>%
-  group_by(gene_id) %>%
-  mutate(
-    gene_total_cpm = sum(avg_orf_cpm, na.rm = TRUE),
-    avg_orf_ratio = round(avg_orf_cpm / gene_total_cpm, 3)
-  ) %>%
-  ungroup() %>%
-  select(orf_base_id, orf_all_isoform_id, reference_gene_name, avg_orf_ratio)
+new_orf_attributes = hc_collapsed %>%
+  select(orf_base_id, orf_all_isoform_id, reference_gene_name)
 
 hc_gtf = gtf %>% 
   filter(type %in% c("transcript", "CDS")) %>%
@@ -1103,7 +1072,7 @@ orf_boundaries = hc_gtf %>%
     orf_end = max(end)
   )
 
-hc_gtf %<>% 
+hc_gtf %<>%
   left_join(orf_boundaries, by = "transcript_id") %>%
   mutate(
     start = if_else(type == "transcript" & !is.na(orf_start), orf_start, start),
@@ -1112,9 +1081,7 @@ hc_gtf %<>%
   select(-orf_start, -orf_end) %>%
   rename(orf_base_id = transcript_id) %>%
   left_join(new_orf_attributes, by = c("orf_base_id")) %>%
-  mutate(name = paste0(orf_base_id, "|",
-                       reference_gene_name, "|", 
-                       avg_orf_ratio)) %>%
+  mutate(name = paste0(orf_base_id, "|", reference_gene_name)) %>%
   select(-orf_all_isoform_id)
 
 # calculate ratio
@@ -1124,5 +1091,4 @@ export(gr_updated, file.path(output_dir, paste0(basename, ".predicted_proteome.c
 # convert to bed12
 gtf_to_bed12(gtf_path = file.path(output_dir, paste0(basename, ".predicted_proteome.collapsed_high_confidence_ORF.gtf")),
              output_bed = file.path(output_dir, paste0(basename, ".predicted_proteome.collapsed_high_confidence_ORF.bed")),
-             color_by = "avg_orf_ratio",
              track_name = paste0(basename, "_predicted_proteome"))
