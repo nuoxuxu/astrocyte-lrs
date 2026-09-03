@@ -24,6 +24,7 @@ $SCRATCH/
 # Python
 __pycache__
 **/__init__.pyc
+**/.ipynb_checkpoints
 
 # R / Shiny
 astrocyte_vis_app/**
