@@ -1,0 +1,42 @@
+
+scontrol show job 2011578
+JobId=2011578 JobName=fragpipe_test
+   UserId=nxu(3122125) GroupId=nxu(3122125) MCS_label=N/A
+   Priority=1777687 Nice=0 Account=rrg-shreejoy QOS=normal
+   JobState=COMPLETING Reason=NonZeroExitCode Dependency=(null)
+   Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode=1:0
+   RunTime=00:00:05 TimeLimit=04:00:00 TimeMin=N/A
+   SubmitTime=2026-08-04T12:06:12 EligibleTime=2026-08-04T12:06:12
+   AccrueTime=2026-08-04T12:06:12
+   StartTime=2026-08-04T12:06:12 EndTime=2026-08-04T12:06:17 Deadline=N/A
+   SuspendTime=None SecsPreSuspend=0 LastSchedEval=2026-08-04T12:06:12 Scheduler=Main
+   Partition=compute AllocNode:Sid=tri-login06:1184004
+   ReqNodeList=(null) ExcNodeList=(null)
+   NodeList=tri0184
+   BatchHost=tri0184
+   NumNodes=1 NumCPUs=192 NumTasks=1 CPUs/Task=1 ReqB:S:C:T=0:0:*:*
+   ReqTRES=cpu=1,mem=767000M,node=1,billing=1
+   AllocTRES=cpu=192,mem=767000M,node=1,billing=192
+   Socks/Node=* NtasksPerN:B:S:C=0:0:*:* CoreSpec=*
+   MinCPUsNode=1 MinMemoryNode=767000M MinTmpDiskNode=0
+   Features=(null) DelayBoot=00:00:00
+   OverSubscribe=NO Contiguous=0 Licenses=(null) LicensesAlloc=(null) Network=(null)
+   Command=/scratch/nxu/astrocytes/fragpipe_test.sh
+   SubmitLine=SBATCH --comment /opt/slurm/bin/sbatch --export=NONE --get-user-env fragpipe_test.sh --export=NONE --get-user-env fragpipe_test.sh
+   WorkDir=/scratch/nxu/astrocytes
+   Comment=/opt/slurm/bin/sbatch --export=NONE --get-user-env fragpipe_test.sh
+   StdErr=/scratch/nxu/astrocytes/fragpipe_test.err
+   StdIn=/dev/null
+   StdOut=/scratch/nxu/astrocytes/fragpipe_test.out
+
+sacct -j 2011578
+JobID           JobName    Account    Elapsed  MaxVMSize     MaxRSS  SystemCPU    UserCPU ExitCode 
+------------ ---------- ---------- ---------- ---------- ---------- ---------- ---------- -------- 
+2011578      fragpipe_+ rrg-shree+   00:00:06                         00:00:00   00:00:00      0:0 
+2011578.bat+      batch rrg-shree+   00:00:06                         00:00:00   00:00:00      0:0 
+2011578.ext+     extern rrg-shree+   00:00:06                         00:00:00   00:00:00      0:0 
+
+
+kernel messages produced during job executions:
+[Aug 4 12:06] /proc/cgroups lists only v1 controllers, use cgroup.controllers of root cgroup for v2 info
+
