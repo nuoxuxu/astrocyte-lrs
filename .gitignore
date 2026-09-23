@@ -6,7 +6,7 @@ proc/
 .nextflow.log*
 
 # Pipeline outputs
-figures/
+/figures/
 export/
 ribotie_res/
 results/
