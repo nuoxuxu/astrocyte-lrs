@@ -10,7 +10,7 @@ process fofn {
 
     script:
     """
-    fofn.py
+    fofn.py "*.flnc.bam"
     """
 }
 
