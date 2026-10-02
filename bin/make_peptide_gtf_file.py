@@ -32,14 +32,14 @@ def read_fasta(fasta_file):
 
 def find_start_pep_index(row):
     pb_acc = row[1]
-    pattern = row[6]
+    pattern = row[5]
     start = re.compile(pattern).search(seqs[pb_acc]).start()
     start_idx = start + 1
     return start_idx
 
 def find_end_pep_index(row):
     pb_acc = row[1]
-    pattern = row[6]
+    pattern = row[5]
     end = re.compile(pattern).search(seqs[pb_acc]).end()
     end_idx = end + 1
     return end_idx
@@ -133,7 +133,7 @@ def write_peptide_gtf(output_name, pep_ranges, pbs):
         # remove for conversion to bed12 (genePred complains)
         # ofile.write('track name=peptide color=0,0,0\n')
         for i, row in pep_ranges.iterrows():
-            pep_seq, pb_acc, prev_aa, next_aa, gene, PSMId, pep_start, pep_end = row
+            pep_seq, pb_acc, prev_aa, next_aa, gene, pep_start, pep_end = row
             # convert from protein (AA) to CDS (nt) coords
             pep_start = pep_start * 3 - 2
             pep_end = pep_end * 3
@@ -151,8 +151,7 @@ def write_peptide_gtf(output_name, pep_ranges, pbs):
                 next_aa = most_frequent(next_aa.split('|'))
                 if chr in ['chrX','chrY']:
                     gene = f"{gene}_{chr}"
-                acc_id= f"{prev_aa}.{pep_seq}.{next_aa}({gene})"
-                pep_acc = f'gene_id "{PSMId}"; transcript_id "{acc_id}"; gene_name "{gene}";'
+                pep_acc = f'transcript_id "{pb_acc}"; gene_id "{gene}";'
                 for [start, end] in orf_coords:
                     ofile.write('\t'.join([chr, 'hg38_canon', 'exon', str(start), str(end), '.', strand,
                                 '.', pep_acc]) + '\n')
@@ -173,36 +172,37 @@ if __name__ == "__main__":
 
     seqs = read_fasta(params.protein_search_database)
     pb_gene = pl.read_parquet(params.final_sample_classification)["isoform", "associated_gene"].with_columns(pl.col("associated_gene").cast(pl.String))
-    gencode_gene = read_gtf(params.annotation_gtf, attributes = ["gene_name", "transcript_id"])\
-        .filter(
-            pl.col("feature") == "transcript",
-            pl.col("transcript_id").is_in(seqs.keys())
-        )["transcript_id", "gene_name"].rename({"transcript_id": "isoform", "gene_name": "associated_gene"})
-    pb_gene = pl.concat([pb_gene, gencode_gene])
+    sample_gtf = pl.DataFrame(read_sample_gtf(params.predicted_cds_gtf))
+    pb_gene = sample_gtf\
+        .with_columns(
+            pl.col("acc").str.split("_").list.first().alias("isoform")
+        )\
+        .join(pb_gene, on = "isoform", how = "right")\
+        .drop("isoform")\
+        .rename({"acc": "isoform"})\
+        .select(["isoform", "associated_gene"])
+    
+    
+    # gencode_gene = read_gtf(params.annotation_gtf, attributes = ["gene_name", "transcript_id"])\
+    #     .filter(
+    #         pl.col("feature") == "transcript",
+    #         pl.col("transcript_id").is_in(seqs.keys())
+    #     )["transcript_id", "gene_name"].rename({"transcript_id": "isoform", "gene_name": "associated_gene"})
+    # pb_gene = pl.concat([pb_gene, gencode_gene])
 
     percolator_res = pl.read_csv(params.peptides, has_header=True, separator="\t")\
-        .with_columns(
-            proteinIds = pl.col("proteinIds").map_elements(lambda s: s.split(",")[0], return_dtype=pl.String)
-        )\
-        .with_columns(
-            pl.col("peptide").str.replace_all(r"M\[15.9949\]", "M")
-        )\
-        .with_columns(
-            pep = pl.col("peptide").str.split(".").map_elements(lambda x: x[1], return_dtype=pl.String),
-            prev_aa = pl.col("peptide").str.split(".").map_elements(lambda x: x[0], return_dtype=pl.String),
-            next_aa = pl.col("peptide").str.split(".").map_elements(lambda x: x[2], return_dtype=pl.String)
-        )\
-        .unique("pep")\
+        .rename({"Protein Description": "proteinIds"})\
+        .unique("Peptide")\
         .rename(
             {"proteinIds": "pb_acc"}
         )\
-        .join(pb_gene.rename({"isoform": "pb_acc"}), on = "pb_acc", how = "left")\
+        .join(pb_gene.rename({"isoform": "pb_acc"}).drop_nulls().unique("pb_acc"), on = "pb_acc", how = "left")\
         .filter(
-            pl.col("q-value") < 0.05
+            pl.col("Qvalue") < 0.05
         )\
-        .rename({"associated_gene": "gene"})[['pep', 'pb_acc', 'prev_aa','next_aa', 'gene', 'PSMId']]\
+        .rename({"associated_gene": "gene"})[['Peptide', 'pb_acc', 'Prev AA','Next AA', 'gene']]\
         .with_columns(
-            pl.col("pep").map_elements(make_IL_regex, return_dtype=pl.String).alias("IL_regex")
+            pl.col("Peptide").map_elements(make_IL_regex, return_dtype=pl.String).alias("IL_regex")
         )
 
     start_idx = percolator_res.map_rows(find_start_pep_index).rename({"map": "pep_start"})

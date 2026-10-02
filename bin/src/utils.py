@@ -242,3 +242,15 @@ def build_CDS_group(gtf, group_by_col="transcript_id"):
         CDSs = tuple(sorted(zip(row["start"], row["end"])))
         keys.add((row["seqname"], row["strand"], CDSs))
     return keys
+
+def print_df(df, num_rows=-1, num_columns=-1):
+    """
+    Prints the entirety of a polars DataFrame without truncating.
+    
+    Args:
+        df: the DataFrame to print
+        num_rows: the number of rows to print (-1 to print all rows)
+        num_columns: the number of columns to print (-1 to print all columns)
+    """
+    with pl.Config(tbl_rows=num_rows, tbl_cols=num_columns):
+        print(df)

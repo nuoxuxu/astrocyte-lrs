@@ -5,7 +5,10 @@ include { FILTER_RIBOTIE } from "./subworkflows/local/filter_ribotie/main.nf"
 include { CDS_LENGTH_DISTRIBUTION } from "./subworkflows/local/cds_length_distribution/main.nf"
 include { RUN_VEP } from "./subworkflows/local/vep/main.nf"
 include { SUMMARY_TABLE } from "./subworkflows/local/summary_table/main.nf"
-include { LABEL_ORF_TYPE_GENCODE } from "./subworkflows/local/quality" 
+include { FIX_COLLABORATOR_ORF_TYPE } from "./subworkflows/local/fix_collaborator_ORF_type/main.nf"
+include { SUPPLEMENT_COLLABORATOR_ORF } from "./subworkflows/local/supplement_collaborator_ORF/main.nf"
+include { FRAGPIPE } from "./subworkflows/local/fragpipe/main.nf"
+include { LRP2_PROTEIN } from "./subworkflows/local/lrp2_protein/main.nf"
 
 process fix_collaborator_gtf {
     conda "/scratch/nxu/astrocytes/env"
@@ -21,68 +24,6 @@ process fix_collaborator_gtf {
     script:
     """
     fix_collaborator_gtf.py $collaborator_gtf -o filtered_output_fixed.gtf
-    """
-}
-
-process supplement_collaborator_gtf {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/translatome/supplemented_collaborator"
-
-    input:
-    path(collaborator_gtf)
-    path(orfanage_gtf)
-
-    output:
-    path("supplemented_collaborator.gtf"), emit: supplemented_gtf
-
-    script:
-    """
-    supplement_collaborator_gtf.py $collaborator_gtf $orfanage_gtf -o supplemented_collaborator.gtf
-    """
-}
-
-process prepare_supplemented_files {
-    module "python:gcc:arrow/19.0.1:rust"
-    label "short_slurm_job"
-    storeDir "nextflow_results/translatome/supplemented_collaborator"
-
-    input:
-    tuple path(supplemented_gtf), path(final_fasta), path(final_expression)
-
-    output:
-    path("supplemented_collaborator.fasta"),                    emit: supplemented_fasta
-    path("supplemented_collaborator_expression.parquet"),       emit: supplemented_expression
-
-    script:
-    """
-    source /scratch/nxu/astrocytes/pytorch/bin/activate
-    prepare_supplemented_gtf_files.py \\
-        $supplemented_gtf \\
-        $final_fasta \\
-        $final_expression \\
-        --output_fasta supplemented_collaborator.fasta \\
-        --output_expression supplemented_collaborator_expression.parquet
-    """
-}
-
-process translate_supplemented_ORFs {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/translatome/supplemented_collaborator"
-
-    input:
-    path ref_genome_fasta
-    path supplemented_gtf
-
-    output:
-    path("supplemented_collaborator_proteins.fasta"), emit: supplemented_proteins
-
-    script:
-    """
-    gffread -y supplemented_collaborator_proteins.fasta \\
-        -g $ref_genome_fasta \\
-        $supplemented_gtf
     """
 }
 
@@ -137,163 +78,8 @@ process IsoseqsSwitchList {
     """
 }
 
-process label_orf_type_gencode {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/quality/${meta}"
-
-    input:
-    tuple val(meta), path(ribotie_csv), path(annotation_gtf), path(orfanage_gtf), path(final_classification)
-
-    output:
-    path("orf_type_gencode.tsv"), emit: orf_type_gencode
-
-    script:
-    """
-    export POLARS_MAX_THREADS=1
-    label_orf_type_gencode.py \\
-        $ribotie_csv \\
-        $annotation_gtf \\
-        $orfanage_gtf \\
-        $final_classification \\
-        -o orf_type_gencode.tsv
-    """
-}
-
-process add_lncRNA_to_collaborator_csv {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/quality/collaborator"
-
-    input:
-    path(ribotie_csv)
-    path(final_classification)
-    path(annotation_gtf)
-
-    output:
-    path("ribotie_cpm1_3sample_with_lncRNA.csv"), emit: ribotie_csv_with_lncRNA
-
-    script:
-    """
-    add_lncRNA.py $ribotie_csv $final_classification $annotation_gtf -o ribotie_cpm1_3sample_with_lncRNA.csv
-    """
-}
-
-process SQANTI_PROTEIN {
-    label 'short_slurm_job'
-    container "sqanti3_latest.sif"
-    storeDir "nextflow_results/sqanti3_protein"
-
-    input:
-    path cds_gtf
-    path reference_gtf
-    path sqanti_protein_script
-
-    output:
-    path("*.predicted_proteome.best_ORF_SQANTI_classification.tsv"), emit: protein_classification
-    path("S3_PREDICTED_PROTEOME_M3_SQANTI_PROTEIN_log.txt"), emit: log
-    path "versions.yml", emit: versions
-
-    script:
-    """
-    exec > >(tee S3_PREDICTED_PROTEOME_M3_SQANTI_PROTEIN_log.txt) 2>&1
-    source /conda/miniconda3/etc/profile.d/conda.sh
-    conda activate sqanti3
-    export SQANTI_PATH=\$(dirname \$(which sqanti3_qc.py))
-
-    # Add src/utilities and utilities to PYTHONPATH for cupcake and other imports
-    export PYTHONPATH=\${SQANTI_PATH}/src/utilities:\${SQANTI_PATH}/utilities:\${SQANTI_PATH}:\${PYTHONPATH:-}
-
-    # Copy the script locally and patch it to use the platform-specific gtfToGenePred binary
-    # v5.5.4 has gtfToGenePred-linux-x86_64 instead of gtfToGenePred
-    cp $sqanti_protein_script ./sqanti3_protein_input_full_gtf_patched.py
-    sed -i 's|GTF2GENEPRED_PROG = os.path.join(sqanti_path, "src", "utilities", "gtfToGenePred")|GTF2GENEPRED_PROG = os.path.join(sqanti_path, "src", "utilities", "gtfToGenePred-linux-x86_64")|g' ./sqanti3_protein_input_full_gtf_patched.py
-
-    python ./sqanti3_protein_input_full_gtf_patched.py \\
-        $cds_gtf \\
-        $reference_gtf \\
-        -d . \\
-        -p test
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        sqanti3: 5.5.4
-    END_VERSIONS
-    """
-}
-
-process PROTEIN_CLASSIFICATION {
-    tag "$meta"
-    label 'short_slurm_job'
-    container "lrp2-lite_latest.sif"
-    storeDir "nextflow_results/protein_classification"
-
-    input:
-    tuple val(meta), path(protein_classification), path(cds_gtf), path(corrected_fasta), path(all_orfs_mapped)
-    path reference_gtf
-    path protein_class_script
-
-    output:
-    tuple val(meta), path("*.predicted_proteome.best_ORF_summary.txt"), emit: protein_all_isoforms
-    tuple val(meta), path("*.predicted_proteome.best_ORF.fa"), emit: protein_all_orfs_fasta
-    tuple val(meta), path("*.predicted_proteome.collapsed_high_confidence_ORF_hashids.txt"), emit: hashids_orf
-    tuple val(meta), path("*.predicted_proteome.collapsed_high_confidence_ORF.gtf"), emit: protein_gtf
-    tuple val(meta), path("*.predicted_proteome.collapsed_high_confidence_ORF.bed"), emit: protein_bed
-    tuple val(meta), path("*_S3_PREDICTED_PROTEOME_M4_PROTEIN_CLASSIFICATION_log.txt"), emit: log
-    path "versions.yml", emit: versions
-
-    when:
-    task.ext.when == null || task.ext.when
-
-    script:
-    def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta}"
-    def min_junctions_after_stop = task.ext.min_junctions_after_stop ?: params.min_junctions_after_stop_codon
-    def protein_class_keep = task.ext.protein_class_keep ?: params.protein_class_keep
-
-    """
-    exec > >(tee ${prefix}_S3_PREDICTED_PROTEOME_M4_PROTEIN_CLASSIFICATION_log.txt) 2>&1
-
-    export R_LIBS_USER=""
-    export R_LIBS="/usr/local/lib/R/site-library:/usr/lib/R/site-library:/usr/lib/R/library"
-
-    Rscript \$(pwd)/$protein_class_script \\
-        --basename $prefix \\
-        --gencode_gtf $reference_gtf \\
-        --sample_cds_gtf $cds_gtf \\
-        --sample_dna_fasta $corrected_fasta \\
-        --mapped_orfs $all_orfs_mapped \\
-        --protein_sqanti $protein_classification \\
-        --output_dir . \\
-        --min_junctions_after_stop $min_junctions_after_stop \\
-        --protein_class_keep "$protein_class_keep" \\
-        $args
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        r-base: \$(R --version | grep "R version" | sed 's/.*R version //g' | sed 's/ .*//g')
-    END_VERSIONS
-    """
-
-    stub:
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    """
-    touch ${prefix}.predicted_proteome.best_ORF_summary.txt
-    touch ${prefix}.predicted_proteome.best_ORF.fa
-    touch ${prefix}.predicted_proteome.collapsed_high_confidence_ORF_hashids_with_cpm.txt
-    touch ${prefix}.predicted_proteome.collapsed_high_confidence_ORF.gtf
-    touch ${prefix}.predicted_proteome.collapsed_high_confidence_ORF.bed
-    touch ${prefix}_S3_PREDICTED_PROTEOME_M4_PROTEIN_CLASSIFICATION_log.txt
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        r-base: 4.3.0
-    END_VERSIONS
-    """
-}
-
 process peptideTrackUCSC {
-    storeDir "nextflow_results/proteomic"
+    storeDir "nextflow_results/proteomics"
     conda "/scratch/nxu/astrocytes/env"
     
     input:
@@ -320,7 +106,7 @@ process peptideTrackUCSC {
 }
 
 process peptideMapping {
-    storeDir "nextflow_results/proteomic"
+    storeDir "nextflow_results/proteomics"
     conda "/scratch/nxu/astrocytes/env"
 
     input:
@@ -343,6 +129,48 @@ process peptideMapping {
     """
 }
 
+process protein_differential_expression {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/proteomics/differential_expression"
+
+    input:
+    path(pg_matrix)
+
+    output:
+    path("protein_DE_stim_vs_unstim.tsv"),  emit: de_results
+    path("log2_intensity_filtered.tsv"),    emit: log2_filtered
+    path("log2_intensity_imputed.tsv"),     emit: log2_imputed
+    path("sample_metadata.tsv"),            emit: sample_metadata
+    path("protein_DE_stim_vs_unstim.pdf"),  emit: plots
+
+    script:
+    """
+    proteomics_differential_expression.R \\
+        --input $pg_matrix \\
+        --outdir . \\
+        --figdir .
+    """
+}
+
+process SUMMARY {
+    conda "/scratch/nxu/astrocytes/env"
+    label "short_slurm_job"
+    storeDir "nextflow_results/summary"
+
+    input:
+    path(ribotie_csv)
+    path(isoform_features_csv)
+    path(protein_de)
+
+    output:
+    path("ribotie_summary.csv"), emit: summary
+
+    script:
+    """
+    make_ribotie_summary.py $ribotie_csv $isoform_features_csv $protein_de -o ribotie_summary.csv
+    """
+}
 
 workflow {
     // Data flow: orfanage ORFs → RiboTIE scoring (by collaborator) → filtered_output.gtf (high-confidence RiboTIE hits)
@@ -370,14 +198,20 @@ workflow {
 
     fix_collaborator_gtf(collaborator_gtf)
 
-    supplement_collaborator_gtf(fix_collaborator_gtf.out.fixed_gtf, orfanage_gtf)
+    SUPPLEMENT_COLLABORATOR_ORF(
+        fix_collaborator_gtf.out.fixed_gtf,
+        orfanage_gtf,
+        final_fasta,
+        final_expression,
+        ref_genome_fasta
+    )
 
-    supplement_collaborator_gtf.out.supplemented_gtf
-        .combine(final_fasta)
-        .combine(final_expression)
-    | prepare_supplemented_files
-
-    translate_supplemented_ORFs(ref_genome_fasta, supplement_collaborator_gtf.out.supplemented_gtf)
+    FIX_COLLABORATOR_ORF_TYPE(
+        fix_collaborator_gtf.out.fixed_gtf,
+        final_classification,
+        annotation_gtf,
+        ribotie_cpm1_3sample
+    )
 
     // Build per-version channel from manifests (exclude gencode)
     channel.fromPath(params.main_pipeline_outputs)
@@ -417,24 +251,25 @@ workflow {
         .set { my_isoform_ch }
 
     channel.value("supplemented_collaborator")
-        .combine(prepare_supplemented_files.out.supplemented_expression)
-        .combine(supplement_collaborator_gtf.out.supplemented_gtf)
+        .combine(SUPPLEMENT_COLLABORATOR_ORF.out.supplemented_expression)
+        .combine(SUPPLEMENT_COLLABORATOR_ORF.out.supplemented_gtf)
         .combine(final_classification)
         .combine(primer_to_sample)
-        .combine(prepare_supplemented_files.out.supplemented_fasta)
+        .combine(SUPPLEMENT_COLLABORATOR_ORF.out.supplemented_fasta)
         .combine(annotation_gtf)
         .set { collaborator_isoform_ch }
 
     my_isoform_ch.mix(collaborator_isoform_ch) | ISOFORMSWITCH
 
-    channel.value("collaborator")
-        .combine(ribotie_cpm1_3sample)
-        .combine(annotation_gtf)
-        .combine(orfanage_gtf)
-        .combine(final_classification) |
-        label_orf_type_gencode
+    FRAGPIPE(
+        file(params.fragpipe_workflow),
+        file(params.fragpipe_manifest),
+        file(params.fragpipe_database),
+        file(params.fragpipe_sif)
+    )
 
-    add_lncRNA_to_collaborator_csv(ribotie_cpm1_3sample, final_classification, annotation_gtf)
+    // Stim (+) vs Unstim (-) protein differential expression (limma) on the DIA-NN protein-group matrix
+    protein_differential_expression(FRAGPIPE.out.pg_matrix)
 
     peptideTrackUCSC(
         "collaborator", 
@@ -442,25 +277,31 @@ workflow {
         final_classification, 
         fix_collaborator_gtf.out.fixed_gtf, 
         file("nextflow_results/ribotie/filtered/filtered_RiboTIE_proteins.fasta"), 
-        file("results/proteomics/peptide.tsv")
+        FRAGPIPE.out.peptides
     )
     peptideMapping(
         annotation_gtf, 
         final_classification, 
         file("nextflow_results/ribotie/filtered/filtered_RiboTIE_proteins.fasta"), 
-        file("results/proteomics/peptide.tsv")
+        FRAGPIPE.out.peptides
     )
 
-    SQANTI_PROTEIN(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, file("${projectDir}/bin/sqanti3_protein.py"))
+    // Per-ORF table with differential splicing (supplemented_collaborator isoformFeatures is keyed by ORF_id)
+    // and Stim vs Unstim protein differential expression columns
+    SUMMARY(
+        FIX_COLLABORATOR_ORF_TYPE.out.ribotie_res_merged_fixed_with_lncRNA,
+        ISOFORMSWITCH.out.versioned_isoform_features_csv
+            .filter { version, _csv -> version == "supplemented_collaborator" }
+            .map { _version, csv -> csv },
+        protein_differential_expression.out.de_results
+    )
 
-    PROTEIN_CLASSIFICATION (
-        channel.value("collaborator")
-            .combine(SQANTI_PROTEIN.out.protein_classification)
-            .combine(fix_collaborator_gtf.out.fixed_gtf)
-            .combine(final_fasta)
-            .combine(ribotie_cpm1_3sample),
-        annotation_gtf,
-        file("${projectDir}/bin/protein_classification.R")
+    LRP2_PROTEIN(
+        "collaborator",
+        fix_collaborator_gtf.out.fixed_gtf,
+        final_fasta,
+        ribotie_cpm1_3sample,
+        annotation_gtf
     )
 
     // AIM_2(supplement_collaborator_gtf.out.supplemented_gtf, annotation_gtf, bigbrain_sqtl, bigbrain_coloc, ISOFORMSWITCH.out.isoform_features_csv, leafcutter_sig, leafcutter_clu2gene)

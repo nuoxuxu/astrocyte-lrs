@@ -8,7 +8,7 @@ process IsoseqsSwitchList {
 
     output:
     tuple val(version), path("IsoformSwitchAnalyzeR.rds"), emit: rds
-    path("isoformFeatures.csv"), emit: isoform_features_csv
+    tuple val(version), path("isoformFeatures.csv"), emit: isoform_features_csv
 
     script:
     """
@@ -81,27 +81,10 @@ process prepare_shinyApp {
 
 workflow ISOFORMSWITCH {
     take:
-    version
-    final_expression
-    primer_to_sample
-    final_fasta
-    predicted_cds_gtf
-    annotation_gtf
-    final_classification
+    isoform_ch
 
     main:
-
-    final_expression
-        .combine(predicted_cds_gtf)
-        .combine(final_classification)
-        .combine(primer_to_sample)
-        .combine(final_fasta)
-        .combine(annotation_gtf)
-        .combine(version)
-        .map { expr, cds_gtf, classif, primer, fasta, annot, ver ->
-            tuple(ver, expr, cds_gtf, classif, primer, fasta, annot)
-        }
-    | IsoseqsSwitchList
+    isoform_ch | IsoseqsSwitchList
 
     IsoseqsSwitchList.out.rds
         .multiMap { ver, rds ->
@@ -115,7 +98,8 @@ workflow ISOFORMSWITCH {
     prepare_shinyApp(split_rds.versions, split_rds.rdss)
 
     emit:
-    isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv
+    isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv.map { _ver, csv -> csv }
+    versioned_isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv
 }
 
 workflow ISOFORMSWITCH_MULTI {
@@ -144,5 +128,6 @@ workflow ISOFORMSWITCH_MULTI {
     prepare_shinyApp(split_rds.versions, split_rds.rdss)
 
     emit:
-    isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv
+    isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv.map { _ver, csv -> csv }
+    versioned_isoform_features_csv = IsoseqsSwitchList.out.isoform_features_csv
 }

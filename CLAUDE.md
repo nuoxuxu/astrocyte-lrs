@@ -69,6 +69,7 @@ supplement_collaborator_gtf → ISOFORMSWITCH (R) → AIM_2 (sQTL/coloc)
 - **aim_2** - Novel coding junctions and leafcutter/novel-junction sQTL–coloc matching
 - **filter_ribotie** - Filters RiboTIE ORFs/proteins for downstream scoring
 - **summary_table** - Per-ORF evidence table (`nextflow_results/summary_table/summary_table.tsv`); combines CPAT, Pfam, PhyloCSF++, GENCODE/Study2 novelty, IsoformSwitch metrics, sQTL coloc, and Ribo-seq concordance. Column meanings are documented in `docs/summary_table_columns.md`. Built by `bin/make_summary_table.py`.
+- **Proteomics** - `FRAGPIPE` (timsTOF diaPASEF search; outputs in `nextflow_results/proteomics/fragpipe/`) → `protein_differential_expression` (`bin/proteomics_differential_expression.R`; limma Stim (+) vs Unstim (−), condition parsed from the `+`/`−` in the DIA-NN sample column names, blocked on culture A/C/E/F). Results in `nextflow_results/proteomics/differential_expression/`. FragPipe peptides also feed `peptideTrackUCSC` and `peptideMapping`.
 - Other available subworkflows in this stage: `ribotie_postanalysis`, `cds_length_distribution`, `vep` (RUN_VEP).
 
 ### `quality.nf` — ORF quality metrics across parameter sets
