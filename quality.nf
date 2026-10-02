@@ -1,5 +1,4 @@
 include { GET_QUALITY_METRICS } from "./subworkflows/local/quality"
-include { LABEL_ORF_TYPE_GENCODE } from "./subworkflows/local/quality"
 include { ISOFORMSWITCH_MULTI } from "./subworkflows/local/IsoformSwitchAnalyzeR/main.nf"
 
 process filter_ribotie_for_isoformswitch {
@@ -32,13 +31,6 @@ process filter_ribotie_for_isoformswitch {
 workflow {
     channel.value(file(params.annotation_gtf)).set { annotation_gtf }
     channel.value(file(params.primer_to_sample)).set { primer_to_sample }
-
-    LABEL_ORF_TYPE_GENCODE(
-        params.main_pipeline_outputs,
-        params.ribotie_training_outputs,
-        annotation_gtf,
-        channel.value(params.orbl_alignment_set)
-    )
 
     // Build per-version channel from manifests (exclude gencode)
     channel.fromPath(params.main_pipeline_outputs)

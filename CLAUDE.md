@@ -82,9 +82,6 @@ require Iso-Seq auxiliary data.
 
 Current workflows exported from `subworkflows/local/quality/main.nf`:
 - **`GET_QUALITY_METRICS`** - PhyloCSF++ conservation annotation of novel ORF GTFs
-- **`LABEL_ORF_TYPE_GENCODE`** - Adds `ORF_type_GENCODE` to the RiboTIE merged CSV by
-  projecting the GENCODE canonical CDS onto each Iso-Seq transcript (same logic as
-  `bin/make_summary_table.py`). Output: `nextflow_results/quality/{name}_orf_type_gencode.tsv`
 
 ### Key Design Patterns
 
