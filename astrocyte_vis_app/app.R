@@ -69,6 +69,8 @@ ui <- navbarPage(
           value = 0.1, min = 0, max = 1, step = 0.01
         ),
         hr(),
+        downloadButton("download_switch_plot", "Download Plot as PDF"),
+        hr(),
         helpText("To view the genomic region of the selected gene in the UCSC Genome Browser, click the link below:"),
         uiOutput("ucsc_link")
       ),
@@ -154,6 +156,35 @@ server <- function(input, output, session) {
       dIFcutoff       = input$dIF_cutoff
     )
   })
+
+  output$download_switch_plot <- downloadHandler(
+    filename = function() {
+      gene <- input$switch_gene
+      version <- input$version
+      paste0(gene, "_", version, "_isoform_switch.pdf")
+    },
+    content = function(file) {
+      validate(need(input$switch_gene, "Choose a gene!"))
+      env <- dataset()
+      n <- max(n_isoforms(), 1L)
+      height <- max(500, 50 + n * 50) / 72
+      width <- 10
+      pdf(file, width = width, height = height)
+      switchPlotFromTables(
+        isoformFeatures = env$isoformFeatures,
+        exons           = env$exons,
+        conditions      = env$conditions,
+        gene            = input$switch_gene,
+        condition1      = "Unstim",
+        condition2      = "Stim",
+        orfAnalysis     = env$orfAnalysis,
+        domainAnalysis  = env$domainAnalysis,
+        IFcutoff        = input$IF_cutoff,
+        dIFcutoff       = input$dIF_cutoff
+      )
+      dev.off()
+    }
+  )
 
 }
 

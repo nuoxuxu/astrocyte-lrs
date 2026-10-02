@@ -5,6 +5,7 @@ library(dplyr)
 library(ggplot2)
 library(ggrepel)
 library(argparse)
+library(ggrastr)
 
 parser <- ArgumentParser(description='Plot volcano plots for DGE, DTE and DTU results')
 parser$add_argument('--switchlist', type='character', required=TRUE, help='Path to switch list object RDS file')
@@ -47,7 +48,7 @@ n_down <- sum(gene_df$direction == "Down in Stim",  na.rm = TRUE)
 pal <- c("Up in Stim" = "#e41a1c", "Down in Stim" = "#377eb8", "NS" = "grey70")
 
 p_dge <- ggplot(gene_df, aes(x = gene_log2_fold_change, y = neglog10q, colour = direction)) +
-    geom_point(alpha = 0.6, size = 1.2) +
+    ggrastr::rasterise(geom_point(alpha = 0.6, size = 1.2), dpi = 600) +
     geom_vline(xintercept = c(-LFC_CUTOFF, LFC_CUTOFF), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_hline(yintercept = -log10(ALPHA), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_text_repel(
@@ -98,7 +99,7 @@ n_dec <- sum(iso_df$direction == "Decreased in Stim", na.rm = TRUE)
 pal2 <- c("Increased in Stim" = "#e41a1c", "Decreased in Stim" = "#377eb8", "NS" = "grey70")
 
 p_dtu <- ggplot(iso_df, aes(x = dIF, y = neglog10q, colour = direction)) +
-    geom_point(alpha = 0.6, size = 1.2) +
+    ggrastr::rasterise(geom_point(alpha = 0.6, size = 1.2), dpi = 600) +
     geom_vline(xintercept = c(-DIF_CUTOFF, DIF_CUTOFF), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_hline(yintercept = -log10(ALPHA), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_text_repel(
@@ -147,7 +148,7 @@ n_iso_up   <- sum(iso_dge_df$direction == "Up in Stim",   na.rm = TRUE)
 n_iso_down <- sum(iso_dge_df$direction == "Down in Stim",  na.rm = TRUE)
 
 p_iso_dge <- ggplot(iso_dge_df, aes(x = iso_log2_fold_change, y = neglog10q, colour = direction)) +
-    geom_point(alpha = 0.6, size = 1.2) +
+    ggrastr::rasterise(geom_point(alpha = 0.6, size = 1.2), dpi = 600) +
     geom_vline(xintercept = c(-LFC_CUTOFF, LFC_CUTOFF), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_hline(yintercept = -log10(ALPHA), linetype = "dashed", colour = "black", linewidth = 0.4) +
     geom_text_repel(
