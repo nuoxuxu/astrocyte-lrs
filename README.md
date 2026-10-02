@@ -66,21 +66,21 @@ All parameters are defined in `nextflow.config`. Key parameters:
 
 ## Running the Pipeline
 
-The analysis is split across three Nextflow workflows that run sequentially:
+The analysis is split across two Nextflow workflows, with RiboTIE run externally in between:
 
 ```bash
 # Step 1: Main pipeline — preprocessing through RiboTIE database preparation
 nextflow run main.nf -profile trillium
 
-# Step 2: RiboTIE training — requires GPU
-nextflow run RiboTIE.nf -profile trillium_gpu
+# Step 2: RiboTIE training — run by a collaborator outside this repo
+#         (predictions are provided in from_collaborator/)
 
 # Step 3: Post-RiboTIE — quality metrics, isoform switching, visualization
 nextflow run post_RiboTIE.nf -profile trillium
 ```
 
 Workflows communicate via JSON manifests written to `nextflow_results/manifests/`:
-- `ribotie_training_inputs.json` — inputs for `RiboTIE.nf`
+- `ribotie_training_inputs.json` — inputs for RiboTIE (run externally)
 - `ribotie_training_outputs.json` — RiboTIE result paths for `post_RiboTIE.nf`
 - `main_pipeline_outputs.json` — filtered transcriptome paths for `post_RiboTIE.nf`
 
@@ -115,9 +115,9 @@ PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI → FILTER_BY_EXPRESSION →
 6. **RUN_ORFANAGE** — ORF annotation and protein sequence extraction with ORFanage
 7. **PREPARE_RIBOTIE** — Ribo-seq alignment (STAR) and RiboTIE database preparation
 
-### RiboTIE.nf
+### RiboTIE (external)
 
-Trains and runs the RiboTIE deep-learning model on prepared databases. Reads inputs from `ribotie_training_inputs.json`. Requires a GPU node (`trillium_gpu` profile). Outputs redundant, novel, and filtered ORF predictions per stringency set.
+RiboTIE training/inference is no longer run from this repo (`RiboTIE.nf` was removed). A collaborator ran RiboTIE on the databases from `PREPARE_RIBOTIE`; the resulting ORF predictions are provided in `from_collaborator/` and consumed by `post_RiboTIE.nf`.
 
 ### post_RiboTIE.nf
 

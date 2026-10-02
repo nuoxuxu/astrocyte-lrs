@@ -8,14 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Running the Pipeline
 
-The pipeline runs in three sequential entrypoints, connected by JSON manifests:
+The pipeline runs in two entrypoints in this repo; RiboTIE (stage 2) is run externally by a collaborator:
 
 ```bash
 # 1. Main pipeline: preprocessing → RiboTIE database prep (HPC with SLURM)
 nextflow run main.nf -profile trillium
 
-# 2. RiboTIE training/inference (requires GPU; consumes manifests from step 1)
-nextflow run RiboTIE.nf -profile trillium_gpu
+# 2. RiboTIE training/inference — run by the collaborator outside this repo (results in from_collaborator/)
 
 # 3. Post-RiboTIE downstream analysis (IsoformSwitch, aim_2, quality, summary table)
 nextflow run post_RiboTIE.nf -profile trillium
@@ -24,7 +23,7 @@ nextflow run post_RiboTIE.nf -profile trillium
 nextflow run main.nf -profile local
 ```
 
-Profiles: `trillium` (local HPC), `trillium_gpu` (GPU jobs), `narval` (Narval cluster), `local` (single machine). All parameters are in `nextflow.config`.
+Profiles: `trillium` (local HPC), `trillium_gpu` (GPU jobs; was used for RiboTIE), `narval` (Narval cluster), `local` (single machine). All parameters are in `nextflow.config`.
 
 ## Architecture
 
@@ -44,9 +43,9 @@ PREPROCESSING → ISOSEQ → RUN_OARFISH → SQANTI → FILTER_BY_EXPRESSION →
 6. **orfanage** - ORF annotation and protein extraction
 7. **prepare_ribotie** - Ribo-seq alignment and RiboTIE database (h5) preparation; writes JSON manifests to `nextflow_results/manifests/`
 
-### Stage 2 — `RiboTIE.nf` (GPU)
+### Stage 2 — RiboTIE (external)
 
-RiboTIE training/inference, driven by the manifests written by stage 1.
+RiboTIE training/inference is no longer part of this repo (`RiboTIE.nf` was removed). The collaborator ran RiboTIE on the stage-1 `prepare_ribotie` outputs; results live in `from_collaborator/`.
 
 ### Stage 3 — `post_RiboTIE.nf` (downstream analysis)
 
@@ -87,7 +86,7 @@ Current workflows exported from `subworkflows/local/quality/main.nf`:
 ### Key Design Patterns
 
 - **Single-filter strategy**: `min_reads` (default: 5) and `min_n_sample` (default: 2) define the expression filter. This is the only filter level; outputs go directly into their respective `nextflow_results/` subdirectories without a stringency-level subfolder.
-- **JSON manifests**: Cross-workflow communication between `main.nf`, `RiboTIE.nf`, `post_RiboTIE.nf`, and `quality.nf` via JSON files in `nextflow_results/manifests/`. Two manifest types exist per parameter set (minlen, no_minlen): `main_pipeline_outputs_{name}.json` (stage-1 outputs: orfanage_gtf, final_classification, final_fasta, final_expression) and `ribotie_training_outputs_{name}.json` (RiboTIE predictions: ribotie_merged_csv/gtf and novel/redundant variants). A `ribotie_training_outputs_gencode.json` also exists for the GENCODE-reference RiboTIE run but has no matching `main_pipeline_outputs_gencode.json`.
+- **JSON manifests**: Cross-workflow communication between `main.nf`, `post_RiboTIE.nf`, and `quality.nf` via JSON files in `nextflow_results/manifests/`. Two manifest types exist per parameter set (minlen, no_minlen): `main_pipeline_outputs_{name}.json` (stage-1 outputs: orfanage_gtf, final_classification, final_fasta, final_expression) and `ribotie_training_outputs_{name}.json` (RiboTIE predictions: ribotie_merged_csv/gtf and novel/redundant variants). A `ribotie_training_outputs_gencode.json` also exists for the GENCODE-reference RiboTIE run but has no matching `main_pipeline_outputs_gencode.json`.
 - **storeDir**: Processes use `storeDir` for persistent output caching (not Nextflow's default `publishDir`).
 
 Process labels control SLURM resource allocation: `short_slurm_job` (1h), `mid_slurm_job` (4h), `long_slurm_job` (24h).
