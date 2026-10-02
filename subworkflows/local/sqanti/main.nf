@@ -1,53 +1,3 @@
-process star_genomeGenerate {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/align/star/"
-
-    input:
-    path ref_genome_fasta
-    path annotation_gtf
-    val outputDir
-
-    script:
-    """
-    STAR \\
-        --runThreadN ${task.cpus} \\
-        --runMode genomeGenerate \\
-        --genomeDir $outputDir \\
-        --genomeFastaFiles $ref_genome_fasta \\
-        --sjdbGTFfile $annotation_gtf \\
-        --sjdbOverhang ReadLength-1
-    """
-
-    output:
-    path("${outputDir}")
-}
-
-process star_sr_genome {
-    conda "/scratch/nxu/astrocytes/env"
-    label "short_slurm_job"
-    storeDir "nextflow_results/align/short_read/gencode"
-    input:
-    path star_genomeDir
-    tuple val(sample_id), path(fastq_files)
-    path annotation_gtf
-
-    output:
-    path("${sample_id}.Aligned.sortedByCoord.out.bam"), emit: star_aligned_bam
-    path("${sample_id}.SJ.out.tab"), emit: star_sj_tab
-
-    script:
-    """
-    STAR --runThreadN ${task.cpus} \\
-    --genomeDir $star_genomeDir \\
-    --readFilesIn $fastq_files \\
-    --readFilesCommand gunzip -c \\
-    --outFileNamePrefix "${sample_id}." \\
-    --outSAMtype BAM SortedByCoordinate \\
-    --sjdbGTFfile $annotation_gtf
-    """
-}
-
 process sqanti_qc {
     label "mid_slurm_job"
     container "sqanti3_latest.sif"
@@ -109,20 +59,16 @@ process sqanti_filter {
 
 workflow SQANTI {
     take:
-    short_read_fastqs
     annotation_gtf
     ref_genome_fasta
     refTSS
     polyA_motif_list
     merged_sorted_collapsed_gtf
-    star_genomeGenerate_outputDir
+    star_aligned_bam
+    star_sj_tab
 
     main:
-    channel.fromFilePairs(short_read_fastqs).set { short_read_fastqs }
-
-    star_genomeGenerate(ref_genome_fasta, annotation_gtf, star_genomeGenerate_outputDir)
-    star_sr_genome(star_genomeGenerate.out, short_read_fastqs, annotation_gtf)
-    sqanti_qc(merged_sorted_collapsed_gtf, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, star_sr_genome.out.star_aligned_bam.collect(), star_sr_genome.out.star_sj_tab.collect())
+    sqanti_qc(merged_sorted_collapsed_gtf, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, star_aligned_bam.collect(), star_sj_tab.collect())
     isoseq_corrected_gtf = sqanti_qc.out
         .map { dir -> dir / "sqanti_qc_results_corrected.gtf" }
     isoseq_classification = sqanti_qc.out
@@ -136,7 +82,6 @@ workflow SQANTI {
         .map { dir -> dir / "sqanti_qc_results_corrected.fasta" }
 
     emit:
-    star_genomeDir = star_genomeGenerate.out
     filtered_gtf = filtered_gtf
     filtered_classification = filtered_classification
     sqanti_corrected_fasta = sqanti_corrected_fasta

@@ -34,6 +34,13 @@
                             "quantify_pseudo_alignment"
                         ]
                     },
+                    "subread/featurecounts": {
+                        "branch": "master",
+                        "git_sha": "c565f1b27c06a1e8b726e2a646d4c822ae3b514a",
+                        "installed_by": [
+                            "modules"
+                        ]
+                    },
                     "summarizedexperiment/summarizedexperiment": {
                         "branch": "master",
                         "git_sha": "41dfa3f7c0ffabb96a6a813fe321c6d1cc5b6e46",

@@ -1,13 +1,13 @@
 include { PREPROCESSING } from "./subworkflows/local/preprocessing"
 include { ISOSEQ } from "./subworkflows/local/isoseq"
 include { RUN_OARFISH } from "./subworkflows/local/oarfish"
+include { SHORT_READ } from "./subworkflows/local/short_read"
 include { SQANTI } from "./subworkflows/local/sqanti"
 include { FILTER_BY_EXPRESSION } from "./subworkflows/local/filter_by_expression"
 include { RUN_ORFANAGE } from "./subworkflows/local/orfanage"
 include { PREPARE_RIBOTIE } from "./subworkflows/local/prepare_ribotie"
 include { QUANTIFY_PSEUDO_ALIGNMENT } from "./subworkflows/nf-core/quantify_pseudo_alignment"
 include { SALMON_INDEX } from "./modules/nf-core/salmon/index"
-include { ANOTA2SEQ_ANOTA2SEQRUN } from "./modules/nf-core/anota2seq/anota2seqrun"
 
 workflow {
     channel.value(file(params.kinnex_adapters)).set { kinnex_adapters }
@@ -24,12 +24,13 @@ workflow {
     PREPROCESSING(params.hifi_reads_bam, kinnex_adapters, isoseq_primers, biosamples_csv)
     ISOSEQ(PREPROCESSING.out.flnc_bam, ref_genome_fasta)
     RUN_OARFISH(ISOSEQ.out.merged_sorted_collapsed_gtf, ref_genome_fasta, PREPROCESSING.out.flnc_bam)
-    SQANTI(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, star_genomeDir_name)
+    SHORT_READ(params.short_read_fastqs, annotation_gtf, ref_genome_fasta, star_genomeDir_name)
+    SQANTI(annotation_gtf, ref_genome_fasta, refTSS, polyA_motif_list, ISOSEQ.out.merged_sorted_collapsed_gtf, SHORT_READ.out.star_aligned_bam, SHORT_READ.out.star_sj_tab)
     FILTER_BY_EXPRESSION(RUN_OARFISH.out.oarfish_quant, SQANTI.out.filtered_classification, SQANTI.out.filtered_gtf, SQANTI.out.sqanti_corrected_fasta, annotation_gtf)
     RUN_ORFANAGE(ref_genome_fasta, FILTER_BY_EXPRESSION.out.final_transcripts_gtf, FILTER_BY_EXPRESSION.out.final_classification, annotation_gtf)
     gtf_for_ribotie = channel.of(["gencode", file(params.annotation_gtf)])
         .concat(RUN_ORFANAGE.out.orfanage_gtf)
-    PREPARE_RIBOTIE(gtf_for_ribotie, SQANTI.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias, channel.fromPath(params.stimulation_labels))
+    PREPARE_RIBOTIE(gtf_for_ribotie, SHORT_READ.out.star_genomeDir, params.riboseq_unmapped_to_contaminants, ref_genome_fasta, chrom_sizes, chromAlias, channel.fromPath(params.stimulation_labels))
 
     PREPARE_RIBOTIE.out.ribotie_db
         .map { input_gtf_name, gtf_h5, ribotie_h5, merged_or_separate ->
